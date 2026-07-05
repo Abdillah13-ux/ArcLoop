@@ -4,12 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "lint": "echo \"api lint not configured yet\"",
     "typecheck": "tsc --noEmit",
     "test": "echo \"api tests not configured yet\"",
     "format": "echo \"api format not configured yet\""
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "@hono/node-server": "^1.17.1",
+    "dotenv": "^17.0.1",
+    "hono": "^4.8.4",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
 }

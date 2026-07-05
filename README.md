@@ -23,4 +23,48 @@ It is a transparent rotating savings pool using USDC and Arc smart contracts.
 
 ## Status
 
-Repository scaffold only. Feature implementation will be done phase-by-phase.
+Phase 1 repository bootstrap. The monorepo is installable and has minimal runnable/typecheckable placeholders for the API, mobile app, shared types, database package, web3 package, and Foundry workspace.
+
+Smart contract implementation, Circle User-Controlled Wallets, Google login, Arc Testnet transactions, pool screens, indexing, and database schema work are future phases.
+
+## Install
+
+```bash
+pnpm install
+```
+
+## Run The API
+
+```bash
+pnpm dev:api
+```
+
+The API listens on `API_PORT` from the environment, with a fallback of `8787`.
+
+Available bootstrap routes:
+
+- `GET /health`
+- `GET /version`
+- `GET /chains/arc-testnet`
+
+## Run The Mobile App
+
+```bash
+pnpm dev:mobile
+```
+
+This starts Expo for the minimal ArcLoop home screen.
+
+## Verification
+
+```bash
+pnpm typecheck
+pnpm build
+```
+
+Foundry commands are wired at the root for later contract work:
+
+```bash
+pnpm contracts:build
+pnpm contracts:test
+```

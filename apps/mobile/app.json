@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "ArcLoop",
+    "slug": "arcloop",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "arcloop",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true
+  }
+}

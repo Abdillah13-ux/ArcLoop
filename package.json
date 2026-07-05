@@ -11,9 +11,16 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "format": "pnpm -r format",
+    "format": "prettier --check .",
+    "dev:api": "pnpm --filter @arcloop/api dev",
+    "dev:mobile": "pnpm --filter @arcloop/mobile dev",
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=20"

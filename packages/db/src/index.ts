@@ -1,1 +1,1 @@
-// Database exports will be added in the database phase.
+export const DATABASE_PACKAGE_READY = true;
