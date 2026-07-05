@@ -1,0 +1,15 @@
+{
+  "name": "@arcloop/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "lint": "echo \"api lint not configured yet\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"api tests not configured yet\"",
+    "format": "echo \"api format not configured yet\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

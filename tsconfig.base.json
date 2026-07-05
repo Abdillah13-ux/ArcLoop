@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "baseUrl": ".",
+    "paths": {
+      "@arcloop/shared": ["packages/shared/src/index.ts"],
+      "@arcloop/db": ["packages/db/src/index.ts"],
+      "@arcloop/web3": ["packages/web3/src/index.ts"]
+    }
+  }
+}

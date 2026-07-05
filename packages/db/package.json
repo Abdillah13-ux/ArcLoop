@@ -1,0 +1,16 @@
+{
+  "name": "@arcloop/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"db lint not configured yet\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"db tests not configured yet\"",
+    "format": "echo \"db format not configured yet\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,21 @@
+{
+  "name": "arcloop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ArcLoop is a mobile-first rotating USDC savings pool on Arc.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "pnpm -r format",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

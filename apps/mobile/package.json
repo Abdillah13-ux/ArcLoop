@@ -1,0 +1,15 @@
+{
+  "name": "@arcloop/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "expo start",
+    "build": "echo \"mobile build not configured yet\"",
+    "lint": "echo \"mobile lint not configured yet\"",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"mobile tests not configured yet\"",
+    "format": "echo \"mobile format not configured yet\""
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
