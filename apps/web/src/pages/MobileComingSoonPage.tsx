@@ -13,10 +13,10 @@ export function MobileComingSoonPage() {
         </p>
       </div>
       <Card>
-        <h2>Future mobile scope</h2>
+        <h2>Current submission scope</h2>
         <p>
-          The native app is expected to support wallet flows, contribution actions, and
-          useful notifications after funding. This web MVP stays read-only for the submission.
+          This milestone focuses on a clear read-only web preview of fixed USDC contributions,
+          payout order, settlement status, and verifiable pool metadata.
         </p>
         <Link className="button primary full-width" to="/">
           Back to web demo

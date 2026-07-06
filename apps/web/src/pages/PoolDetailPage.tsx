@@ -59,21 +59,28 @@ export function PoolDetailPage() {
             <StatusPill status={pool.status} />
             <p>{pool.description ?? "Read-only ArcLoop pool metadata."}</p>
           </div>
-          <Card>
-            <InfoRow label="Contribution amount" value={pool.contributionAmount} />
-            <InfoRow label="Max members" value={String(pool.maxMembers)} />
-            <InfoRow label="Current round" value={String(pool.currentRound)} />
-            <InfoRow label="Invite code" value={pool.inviteCode} />
-            <InfoRow label="On-chain pool ID" value={String(pool.onchainPoolId)} />
-          </Card>
-          <Card>
-            <InfoRow label="Creator" value={pool.creatorAddress} />
-            <InfoRow label="Token" value={pool.tokenAddress} />
-            <InfoRow label="Contract" value={pool.contractAddress} />
-            <InfoRow label="Chain ID" value={String(pool.chainId)} />
-          </Card>
+          <div className="detail-stack">
+            <Card>
+              <div className="card-heading">
+                <h2>Pool terms</h2>
+                <StatusPill status={pool.status} />
+              </div>
+              <InfoRow label="Contribution amount" value={pool.contributionAmount} />
+              <InfoRow label="Max members" value={String(pool.maxMembers)} />
+              <InfoRow label="Current round" value={String(pool.currentRound)} />
+              <InfoRow label="Invite code" value={pool.inviteCode} />
+              <InfoRow label="On-chain pool ID" value={String(pool.onchainPoolId)} />
+            </Card>
+            <Card>
+              <h2>Verification</h2>
+              <InfoRow label="Creator" value={pool.creatorAddress} />
+              <InfoRow label="Token" value={pool.tokenAddress} />
+              <InfoRow label="Contract" value={pool.contractAddress} />
+              <InfoRow label="Chain ID" value={String(pool.chainId)} />
+            </Card>
+          </div>
           <button className="button disabled" disabled>
-            Wallet actions coming later.
+            Read-only submission preview.
           </button>
         </>
       ) : null}

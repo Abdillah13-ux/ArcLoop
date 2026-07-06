@@ -80,6 +80,29 @@ export function HomePage() {
               <InfoRow label="USDC" value={shortenAddress(contractInfo.usdcTokenAddress)} />
             </div>
           ) : null}
+          <div className="proof-rail" aria-label="ArcLoop settlement model">
+            <div className="proof-step">
+              <span>01</span>
+              <div>
+                <strong>Fixed USDC contribution</strong>
+                <small>Each pool exposes one contribution amount from contract state.</small>
+              </div>
+            </div>
+            <div className="proof-step">
+              <span>02</span>
+              <div>
+                <strong>Ordered payout rounds</strong>
+                <small>Round order and settlement history stay visible for review.</small>
+              </div>
+            </div>
+            <div className="proof-step">
+              <span>03</span>
+              <div>
+                <strong>Verifiable proof trail</strong>
+                <small>API records mirror Arc Testnet events for transparent review.</small>
+              </div>
+            </div>
+          </div>
         </Card>
       </section>
 
