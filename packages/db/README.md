@@ -16,7 +16,7 @@ Local defaults:
 
 - Database: `arcloop`
 - User: `arcloop`
-- Host port: `5432`
+- Host port: `15432`
 
 Do not commit `.env`.
 

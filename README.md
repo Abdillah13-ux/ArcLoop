@@ -47,7 +47,7 @@ Copy `.env.example` to a local `.env` only for local development. Do not commit 
 docker compose up -d postgres
 ```
 
-The local database defaults to `postgresql://arcloop:arcloop_dev_password@localhost:5432/arcloop`.
+The local database defaults to `postgresql://arcloop:arcloop_dev_password@127.0.0.1:15432/arcloop`.
 
 ## Database
 

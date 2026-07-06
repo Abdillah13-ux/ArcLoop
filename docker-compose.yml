@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: arcloop
       POSTGRES_PASSWORD: arcloop_dev_password
     ports:
-      - "5432:5432"
+      - "15432:5432"
     volumes:
       - arcloop-postgres-data:/var/lib/postgresql/data
 
