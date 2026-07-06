@@ -17,6 +17,7 @@
     "db:studio": "pnpm --filter @arcloop/db db:studio",
     "dev:db": "docker compose up -d postgres",
     "dev:api": "pnpm --filter @arcloop/api dev",
+    "dev:web": "pnpm --filter @arcloop/web dev",
     "dev:mobile": "pnpm --filter @arcloop/mobile dev",
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test"
