@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: arcloop-postgres
+    environment:
+      POSTGRES_DB: arcloop
+      POSTGRES_USER: arcloop
+      POSTGRES_PASSWORD: arcloop_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - arcloop-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  arcloop-postgres-data:

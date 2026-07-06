@@ -17,20 +17,43 @@ It is a transparent rotating savings pool using USDC and Arc smart contracts.
 - PostgreSQL + Drizzle ORM
 - viem
 - Foundry
-- Circle User-Controlled Wallets + Google login
 - Arc Testnet
 - pnpm workspace
 
 ## Status
 
-Phase 1 repository bootstrap. The monorepo is installable and has minimal runnable/typecheckable placeholders for the API, mobile app, shared types, database package, web3 package, and Foundry workspace.
+Phase 3 database and backend API work is in progress.
 
-Smart contract implementation, Circle User-Controlled Wallets, Google login, Arc Testnet transactions, pool screens, indexing, and database schema work are future phases.
+The `RotatingSavingsPool` contract is deployed and verified on Arc Testnet:
+
+- Chain ID: `5042002`
+- Contract: `0xdb0177f58DC2dceB621CD47336C77d3498999a67`
+- USDC token: `0x3600000000000000000000000000000000000000`
+- Explorer: `https://testnet.arcscan.app`
+
+The backend is a metadata and indexing layer only. It is not custody; funds remain in the smart contract and on-chain state is the source of truth.
 
 ## Install
 
 ```bash
 pnpm install
+```
+
+Copy `.env.example` to a local `.env` only for local development. Do not commit `.env` or any file containing private keys, API keys, JWTs, or production secrets.
+
+## Run Postgres
+
+```bash
+docker compose up -d postgres
+```
+
+The local database defaults to `postgresql://arcloop:arcloop_dev_password@localhost:5432/arcloop`.
+
+## Database
+
+```bash
+pnpm db:generate
+pnpm db:migrate
 ```
 
 ## Run The API
@@ -46,6 +69,23 @@ Available bootstrap routes:
 - `GET /health`
 - `GET /version`
 - `GET /chains/arc-testnet`
+- `GET /contracts/rotating-savings-pool`
+- `POST /pools`
+- `GET /pools`
+- `GET /pools/:id`
+- `GET /invites/:inviteCode`
+- `GET /chains/:chainId/contracts/:contractAddress/pools/:onchainPoolId`
+- `POST /indexer/run-once`
+
+Run the one-shot indexer manually:
+
+```bash
+curl -X POST http://localhost:8787/indexer/run-once \
+  -H "content-type: application/json" \
+  -d '{}'
+```
+
+If `INDEXER_ADMIN_TOKEN` is set, include `Authorization: Bearer <token>`.
 
 ## Run The Mobile App
 

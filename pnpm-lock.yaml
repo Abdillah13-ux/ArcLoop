@@ -20,15 +20,27 @@ importers:
 
   apps/api:
     dependencies:
+      '@arcloop/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@arcloop/web3':
+        specifier: workspace:*
+        version: link:../../packages/web3
       '@hono/node-server':
         specifier: ^1.17.1
         version: 1.19.14(hono@4.12.27)
       dotenv:
         specifier: ^17.0.1
         version: 17.4.2
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(@types/pg@8.20.0)(pg@8.22.0)
       hono:
         specifier: ^4.8.4
         version: 4.12.27
+      viem:
+        specifier: ^2.31.4
+        version: 2.54.3(typescript@5.9.3)(zod@3.25.76)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
