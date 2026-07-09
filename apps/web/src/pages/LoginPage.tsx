@@ -8,8 +8,7 @@ import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { createCircleSocialDeviceToken, getCircleLoginConfig } from "../lib/api-client";
 import { useCircleAuth } from "../lib/circle-auth";
-
-const loginRedirectUri = "http://localhost:5173/login";
+import { resolveCircleLoginRedirectUri } from "../lib/circle-redirect-uri";
 
 type LoginCompleteCallback = NonNullable<ConstructorParameters<typeof W3SSdk>[1]>;
 
@@ -93,6 +92,9 @@ export function LoginPage() {
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState("Preparing Circle login...");
+  const [loginRedirectUri, setLoginRedirectUri] = useState(() =>
+    resolveCircleLoginRedirectUri(null)
+  );
   const [sdkCallbackDebug, setSdkCallbackDebug] = useState(() =>
     formatSdkCallbackDebug(createInitialSdkCallbackDebugInfo())
   );
@@ -163,6 +165,9 @@ export function LoginPage() {
           history.replaceState(null, "", callbackUrlWithoutHash);
         }
 
+        const nextLoginRedirectUri = resolveCircleLoginRedirectUri(config.googleRedirectUri);
+        setLoginRedirectUri(nextLoginRedirectUri);
+
         const sdk = new W3SSdk();
 
         const deviceId = await sdk.getDeviceId();
@@ -191,7 +196,7 @@ export function LoginPage() {
             loginConfigs: {
               google: {
                 clientId: config.googleClientId,
-                redirectUri: loginRedirectUri,
+                redirectUri: nextLoginRedirectUri,
                 selectAccountPrompt: true
               },
               deviceToken: device.deviceToken,

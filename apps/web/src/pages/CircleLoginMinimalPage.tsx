@@ -6,8 +6,7 @@ import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { createCircleSocialDeviceToken, getCircleLoginConfig } from "../lib/api-client";
-
-const minimalRedirectUri = "http://localhost:5173/circle-login-minimal";
+import { resolveCircleLoginRedirectUri } from "../lib/circle-redirect-uri";
 
 type LoginCompleteCallback = NonNullable<ConstructorParameters<typeof W3SSdk>[1]>;
 
@@ -125,6 +124,9 @@ export function CircleLoginMinimalPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
   const [status, setStatus] = useState("Preparing minimal Circle login...");
+  const [minimalRedirectUri, setMinimalRedirectUri] = useState(() =>
+    resolveCircleLoginRedirectUri(null)
+  );
   const [callbackDebug, setCallbackDebug] = useState(() => formatCallbackDebug(readCallbackDebugInfo()));
   const [outboundDebug, setOutboundDebug] = useState<string | null>(null);
   const [loginResult, setLoginResult] = useState<MinimalLoginResult | null>(null);
@@ -200,6 +202,8 @@ export function CircleLoginMinimalPage() {
 
         const deviceId = await sdk.getDeviceId();
         const device = await createCircleSocialDeviceToken(deviceId);
+        const nextMinimalRedirectUri = resolveCircleLoginRedirectUri(config.googleRedirectUri);
+        setMinimalRedirectUri(nextMinimalRedirectUri);
 
         if (!device.deviceToken || !device.deviceEncryptionKey) {
           setError("Circle did not return a social login device token for this browser session.");
@@ -214,7 +218,7 @@ export function CircleLoginMinimalPage() {
             loginConfigs: {
               google: {
                 clientId: config.googleClientId,
-                redirectUri: minimalRedirectUri,
+                redirectUri: nextMinimalRedirectUri,
                 selectAccountPrompt: true
               },
               deviceToken: device.deviceToken,
