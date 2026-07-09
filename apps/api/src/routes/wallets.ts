@@ -310,6 +310,10 @@ walletsRoutes.post("/wallets/circle/social-device-token", async (c) => {
 
   try {
     const hardTimeout = createHardTimeoutPromise();
+    console.info("[Circle social device token]", {
+      status: null,
+      category: "route_start"
+    });
     const data = await Promise.race([
       createSocialLoginDeviceToken(parsed.data.deviceId),
       hardTimeout.promise

@@ -89,9 +89,9 @@ export type SafeCircleError = {
 };
 
 const circleApiBaseUrl = "https://api.circle.com";
-const circleSocialDeviceTokenTimeoutMs = 10_000;
+const circleSocialDeviceTokenTimeoutMs = 5_000;
 const circleSocialDeviceTokenTimeoutMessage = "Circle social device token request timed out.";
-export const circleSocialDeviceTokenHardTimeoutMs = 10_500;
+export const circleSocialDeviceTokenHardTimeoutMs = 6_000;
 
 export class CircleSocialDeviceTokenError extends Error {
   constructor(
