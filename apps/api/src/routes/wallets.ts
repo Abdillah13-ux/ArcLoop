@@ -156,9 +156,31 @@ class JsonRouteError extends Error {
 
 async function readSocialDeviceTokenRequest(c: {
   req: {
+    header: (name: string) => string | undefined;
     raw: Request;
   };
 }) {
+  const headerDeviceId = c.req.header("x-circle-device-id")?.trim() ?? "";
+
+  if (headerDeviceId) {
+    const parsed = socialDeviceTokenSchema.safeParse({ deviceId: headerDeviceId });
+
+    if (!parsed.success) {
+      throw new JsonRouteError(400, parsed.error.flatten());
+    }
+
+    return parsed.data;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new JsonRouteError(400, {
+      formErrors: [],
+      fieldErrors: {
+        deviceId: ["Required"]
+      }
+    });
+  }
+
   console.info("[Circle social device token]", {
     status: null,
     category: "body_read_start"
@@ -189,6 +211,7 @@ async function readSocialDeviceTokenRequest(c: {
 
 async function runSocialDeviceTokenRoute(c: {
   req: {
+    header: (name: string) => string | undefined;
     raw: Request;
   };
 }) {

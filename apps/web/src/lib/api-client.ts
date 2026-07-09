@@ -100,9 +100,8 @@ export function createCircleSocialDeviceToken(deviceId: string) {
   return request<CircleSocialDeviceToken>("/wallets/circle/social-device-token", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ deviceId })
+      "x-circle-device-id": deviceId
+    }
   });
 }
 
