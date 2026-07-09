@@ -48,7 +48,7 @@ const envSchema = z.object({
   ARC_TESTNET_RPC_URL: envUrl("https://rpc.testnet.arc.network"),
   ARC_TESTNET_CHAIN_ID: optionalEnvNumber.default(5042002),
   ARC_TESTNET_EXPLORER_URL: envUrl("https://testnet.arcscan.app"),
-  ARCLOOP_CONTRACT_ADDRESS: envAddress("0xdb0177f58DC2dceB621CD47336C77d3498999a67"),
+  ARCLOOP_CONTRACT_ADDRESS: envAddress("0x82AbF5102Cb744542A5EAd9786b05dEDC445FE8B"),
   USDC_TOKEN_ADDRESS: envAddress("0x3600000000000000000000000000000000000000"),
   CIRCLE_API_KEY: optionalEnvString,
   CIRCLE_ENTITY_SECRET: optionalEnvString,

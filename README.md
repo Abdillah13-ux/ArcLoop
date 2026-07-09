@@ -27,7 +27,7 @@ Phase 3 database and backend API work is in progress.
 The `RotatingSavingsPool` contract is deployed and verified on Arc Testnet:
 
 - Chain ID: `5042002`
-- Contract: `0xdb0177f58DC2dceB621CD47336C77d3498999a67`
+- Contract: `0x82AbF5102Cb744542A5EAd9786b05dEDC445FE8B`
 - USDC token: `0x3600000000000000000000000000000000000000`
 - Explorer: `https://testnet.arcscan.app`
 

@@ -28,7 +28,7 @@ Do not commit `.env`. Use `.env.example` for public/local defaults only.
 ## Deployed Contract
 
 - Chain ID: `5042002`
-- RotatingSavingsPool: `0xdb0177f58DC2dceB621CD47336C77d3498999a67`
+- RotatingSavingsPool: `0x82AbF5102Cb744542A5EAd9786b05dEDC445FE8B`
 - USDC: `0x3600000000000000000000000000000000000000`
 - Explorer: `https://testnet.arcscan.app`
 
