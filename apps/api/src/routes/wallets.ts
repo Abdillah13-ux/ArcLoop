@@ -27,6 +27,7 @@ import {
   createPoolAbiParameterCount,
   createPoolFunctionSignature,
   createCircleUserControlledTransaction,
+  CircleTransactionRequestError,
   createSocialLoginDeviceToken,
   createUserPinSetupChallenge,
   createUserWallet,
@@ -144,6 +145,35 @@ function createHardTimeoutPromise() {
   };
 }
 
+const createPoolTransactionHardTimeoutMs = 6_000;
+const createPoolTransactionTimeoutMessage = "Circle create transaction request timed out.";
+
+class CreatePoolTransactionTimeoutError extends Error {
+  constructor() {
+    super(createPoolTransactionTimeoutMessage);
+    this.name = "CreatePoolTransactionTimeoutError";
+  }
+}
+
+function createCreatePoolTransactionTimeoutPromise() {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const promise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      console.info("[Circle create transaction]", {
+        status: null,
+        category: "timeout"
+      });
+      reject(new CreatePoolTransactionTimeoutError());
+    }, createPoolTransactionHardTimeoutMs);
+  });
+
+  return {
+    promise,
+    clear: () => clearTimeout(timeoutId)
+  };
+}
+
 class JsonRouteError extends Error {
   constructor(
     readonly status: 400,
@@ -223,6 +253,35 @@ async function runSocialDeviceTokenRoute(c: {
   });
 
   return createSocialLoginDeviceToken(input.deviceId);
+}
+
+async function readCreatePoolTransactionRequest(c: {
+  req: {
+    raw: Request;
+  };
+}) {
+  let text: string;
+
+  try {
+    text = await c.req.raw.clone().text();
+  } catch {
+    throw new JsonRouteError(400, "Unable to read request body.");
+  }
+
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  const parsed = createPoolTransactionSchema.safeParse(json);
+
+  if (!parsed.success) {
+    throw new JsonRouteError(400, parsed.error.flatten());
+  }
+
+  return parsed.data;
 }
 
 function getBearerUserToken(c: { req: { header: (name: string) => string | undefined } }) {
@@ -508,54 +567,94 @@ walletsRoutes.post("/wallets/me/pin/setup", async (c) => {
 });
 
 walletsRoutes.post("/wallets/me/pools/create-transaction", async (c) => {
-  const json = await c.req.json().catch(() => null);
-  const parsed = createPoolTransactionSchema.safeParse(json);
-  const userToken = getBearerUserToken(c);
-
-  if (!parsed.success) {
-    return c.json({ data: null, error: parsed.error.flatten() }, 400);
-  }
-
-  if (!userToken) {
-    return c.json({ data: null, error: "Circle user token is required." }, 401);
-  }
-
-  const contributionAmount = parseUnits(parsed.data.contributionAmount, 6);
-  if (contributionAmount <= 0n) {
-    return c.json({ data: null, error: "Contribution amount must be greater than zero." }, 400);
-  }
-
-  const calldata = encodeFunctionData({
-    abi: rotatingSavingsPoolAbi,
-    functionName: "createPool",
-    args: [env.USDC_TOKEN_ADDRESS as Address, contributionAmount, BigInt(parsed.data.maxMembers)]
+  console.info("[Circle create transaction]", {
+    status: null,
+    category: "handler_entry"
   });
-  let walletIdLength: number | null = null;
-  let walletAddressPresent: boolean | null = null;
 
-  try {
-    const wallet = await getUserWallet(userToken);
-    walletIdLength = wallet.walletId?.length ?? null;
-    walletAddressPresent = Boolean(wallet.address);
+  const route = async () => {
+    const userToken = getBearerUserToken(c);
 
-    if (!wallet.walletId) {
+    if (!userToken) {
+      return c.json({ data: null, error: "Circle user token is required." }, 401);
+    }
+
+    console.info("[Circle create transaction]", {
+      status: null,
+      category: "route_start"
+    });
+
+    const input = await readCreatePoolTransactionRequest(c);
+    const contributionAmount = parseUnits(input.contributionAmount, 6);
+
+    if (contributionAmount <= 0n) {
+      return c.json({ data: null, error: "Contribution amount must be greater than zero." }, 400);
+    }
+
+    const calldata = encodeFunctionData({
+      abi: rotatingSavingsPoolAbi,
+      functionName: "createPool",
+      args: [env.USDC_TOKEN_ADDRESS as Address, contributionAmount, BigInt(input.maxMembers)]
+    });
+
+    try {
+      const wallet = await getUserWallet(userToken);
+
+      if (!wallet.walletId) {
+        return c.json(
+          {
+            data: {
+              pool: {
+                title: input.title,
+                description: input.description ?? null,
+                contributionAmount: contributionAmount.toString(),
+                maxMembers: input.maxMembers
+              },
+              wallet,
+              transaction: {
+                challengeId: null,
+                transactionId: null,
+                transactionHash: null,
+                status: "WALLET_NOT_CREATED",
+                message: "Create or complete a Circle wallet before creating a pool transaction."
+              },
+              request: {
+                chainId: env.ARC_TESTNET_CHAIN_ID,
+                contractAddress: rotatingSavingsPoolAddress,
+                usdcTokenAddress: env.USDC_TOKEN_ADDRESS.toLowerCase(),
+                explorerUrl: env.ARC_TESTNET_EXPLORER_URL,
+                calldata
+              }
+            },
+            error: null
+          },
+          200
+        );
+      }
+
+      console.info("[Circle create transaction]", {
+        status: null,
+        category: "circle_transaction_start"
+      });
+
+      const transaction = await createCircleUserControlledTransaction({
+        userToken,
+        walletId: wallet.walletId,
+        to: rotatingSavingsPoolAddress,
+        contributionAmount: contributionAmount.toString(),
+        maxMembers: input.maxMembers
+      });
+
       return c.json(
         {
           data: {
             pool: {
-              title: parsed.data.title,
-              description: parsed.data.description ?? null,
+              title: input.title,
+              description: input.description ?? null,
               contributionAmount: contributionAmount.toString(),
-              maxMembers: parsed.data.maxMembers
+              maxMembers: input.maxMembers
             },
-            wallet,
-            transaction: {
-              challengeId: null,
-              transactionId: null,
-              transactionHash: null,
-              status: "WALLET_NOT_CREATED",
-              message: "Create or complete a Circle wallet before creating a pool transaction."
-            },
+            transaction,
             request: {
               chainId: env.ARC_TESTNET_CHAIN_ID,
               contractAddress: rotatingSavingsPoolAddress,
@@ -568,64 +667,47 @@ walletsRoutes.post("/wallets/me/pools/create-transaction", async (c) => {
         },
         200
       );
-    }
+    } catch (error) {
+      if (error instanceof CircleTransactionRequestError && error.category === "timeout") {
+        return c.json({ data: null, error: createPoolTransactionTimeoutMessage }, 504);
+      }
 
-    console.info("[Circle transaction debug] createPool challenge request", {
-      hasUserToken: true,
-      walletIdLength,
-      addressPresent: walletAddressPresent,
-      contractAddressPresent: Boolean(rotatingSavingsPoolAddress),
-      functionSignature: createPoolFunctionSignature,
-      abiParameterCount: createPoolAbiParameterCount,
-      calldataLength: calldata.length,
-      amountString: contributionAmount.toString(),
-      maxMembers: parsed.data.maxMembers
-    });
+      const safeError = getSafeCircleError(error);
+      console.warn("[Circle create transaction]", {
+        status: safeError.status,
+        category: "error"
+      });
 
-    const transaction = await createCircleUserControlledTransaction({
-      userToken,
-      walletId: wallet.walletId,
-      to: rotatingSavingsPoolAddress,
-      contributionAmount: contributionAmount.toString(),
-      maxMembers: parsed.data.maxMembers
-    });
-
-    return c.json(
-      {
-        data: {
-          pool: {
-            title: parsed.data.title,
-            description: parsed.data.description ?? null,
-            contributionAmount: contributionAmount.toString(),
-            maxMembers: parsed.data.maxMembers
-          },
-          transaction,
-          request: {
-            chainId: env.ARC_TESTNET_CHAIN_ID,
-            contractAddress: rotatingSavingsPoolAddress,
-            usdcTokenAddress: env.USDC_TOKEN_ADDRESS.toLowerCase(),
-            explorerUrl: env.ARC_TESTNET_EXPLORER_URL,
-            calldata
+      return c.json(
+        {
+          data: null,
+          error: {
+            code: safeError.code ?? "CIRCLE_TRANSACTION_CHALLENGE_FAILED",
+            message: safeError.message
           }
         },
-        error: null
-      },
-      200
-    );
+        circleTransactionFailureStatus(safeError.status)
+      );
+    }
+  };
+
+  const hardTimeout = createCreatePoolTransactionTimeoutPromise();
+
+  try {
+    return await Promise.race([route(), hardTimeout.promise]);
   } catch (error) {
+    if (error instanceof CreatePoolTransactionTimeoutError) {
+      return c.json({ data: null, error: createPoolTransactionTimeoutMessage }, 504);
+    }
+
+    if (error instanceof JsonRouteError) {
+      return c.json({ data: null, error: error.error }, error.status);
+    }
+
     const safeError = getSafeCircleError(error);
-    console.warn("[Circle transaction debug] createPool challenge failed", {
-      hasUserToken: Boolean(userToken),
-      walletIdLength,
-      addressPresent: walletAddressPresent,
-      contractAddressPresent: Boolean(rotatingSavingsPoolAddress),
-      functionSignature: createPoolFunctionSignature,
-      abiParameterCount: createPoolAbiParameterCount,
-      calldataLength: calldata.length,
-      amountString: contributionAmount.toString(),
-      maxMembers: parsed.data.maxMembers,
-      circleErrorCode: safeError.code,
-      circleErrorMessage: safeError.message
+    console.warn("[Circle create transaction]", {
+      status: safeError.status,
+      category: "error"
     });
 
     return c.json(
@@ -638,6 +720,8 @@ walletsRoutes.post("/wallets/me/pools/create-transaction", async (c) => {
       },
       circleTransactionFailureStatus(safeError.status)
     );
+  } finally {
+    hardTimeout.clear();
   }
 });
 

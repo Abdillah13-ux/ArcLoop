@@ -92,6 +92,8 @@ const circleApiBaseUrl = "https://api.circle.com";
 const circleSocialDeviceTokenTimeoutMs = 5_000;
 const circleSocialDeviceTokenTimeoutMessage = "Circle social device token request timed out.";
 export const circleSocialDeviceTokenHardTimeoutMs = 6_000;
+const circleTransactionCreateTimeoutMs = 5_000;
+const circleTransactionCreateTimeoutMessage = "Circle transaction creation request timed out.";
 
 export class CircleSocialDeviceTokenError extends Error {
   constructor(
@@ -101,6 +103,17 @@ export class CircleSocialDeviceTokenError extends Error {
   ) {
     super(message);
     this.name = "CircleSocialDeviceTokenError";
+  }
+}
+
+export class CircleTransactionRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly category: "timeout" | "upstream" | "network" | "invalid_response"
+  ) {
+    super(message);
+    this.name = "CircleTransactionRequestError";
   }
 }
 
@@ -173,6 +186,13 @@ function logCircleSocialDeviceTokenResult(details: {
   category: "start" | "response" | "success" | CircleSocialDeviceTokenError["category"];
 }) {
   console.info("[Circle social device token]", details);
+}
+
+function logCircleTransactionResult(details: {
+  status: number | null;
+  category: "timeout" | "response";
+}) {
+  console.info("[Circle transaction]", details);
 }
 
 function asAddress(value: unknown): Address | null {
@@ -509,18 +529,38 @@ export async function createCircleContractExecutionTransaction(
     };
   }
 
-  const response = await client.createUserTransactionContractExecutionChallenge({
-    userToken: input.userToken,
-    walletId: input.walletId,
-    contractAddress: input.contractAddress,
-    abiFunctionSignature: input.functionSignature,
-    abiParameters: input.abiParameters,
-    fee: {
-      type: "level",
-      config: {
-        feeLevel: "HIGH"
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      logCircleTransactionResult({
+        status: null,
+        category: "timeout"
+      });
+      reject(new CircleTransactionRequestError(circleTransactionCreateTimeoutMessage, null, "timeout"));
+    }, circleTransactionCreateTimeoutMs);
+  });
+
+  const response = await Promise.race([
+    client.createUserTransactionContractExecutionChallenge({
+      userToken: input.userToken,
+      walletId: input.walletId,
+      contractAddress: input.contractAddress,
+      abiFunctionSignature: input.functionSignature,
+      abiParameters: input.abiParameters,
+      fee: {
+        type: "level",
+        config: {
+          feeLevel: "HIGH"
+        }
       }
-    }
+    }),
+    timeoutPromise
+  ]).finally(() => clearTimeout(timeoutId));
+
+  logCircleTransactionResult({
+    status: typeof response.status === "number" ? response.status : null,
+    category: "response"
   });
 
   const data = response.data as
