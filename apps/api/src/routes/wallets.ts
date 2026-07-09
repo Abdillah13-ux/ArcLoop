@@ -255,11 +255,56 @@ async function runSocialDeviceTokenRoute(c: {
   return createSocialLoginDeviceToken(input.deviceId);
 }
 
+function decodeHeaderValue(value: string | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return decodeURIComponent(value).trim();
+  } catch {
+    return value.trim();
+  }
+}
+
 async function readCreatePoolTransactionRequest(c: {
   req: {
+    header: (name: string) => string | undefined;
     raw: Request;
   };
 }) {
+  const headerInput = {
+    title: decodeHeaderValue(c.req.header("x-arcloop-title")),
+    description: decodeHeaderValue(c.req.header("x-arcloop-description")) || undefined,
+    contributionAmount: decodeHeaderValue(c.req.header("x-arcloop-contribution-amount")),
+    maxMembers: decodeHeaderValue(c.req.header("x-arcloop-max-members"))
+  };
+
+  if (
+    headerInput.title ||
+    headerInput.description ||
+    headerInput.contributionAmount ||
+    headerInput.maxMembers
+  ) {
+    const parsed = createPoolTransactionSchema.safeParse(headerInput);
+
+    if (!parsed.success) {
+      throw new JsonRouteError(400, parsed.error.flatten());
+    }
+
+    return parsed.data;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    const parsed = createPoolTransactionSchema.safeParse(headerInput);
+
+    if (!parsed.success) {
+      throw new JsonRouteError(400, parsed.error.flatten());
+    }
+
+    return parsed.data;
+  }
+
   let text: string;
 
   try {

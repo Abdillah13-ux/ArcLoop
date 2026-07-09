@@ -136,9 +136,11 @@ export function createPoolTransaction(input: CreatePoolTransactionInput, userTok
     method: "POST",
     headers: {
       ...authHeaders(userToken),
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(input)
+      "x-arcloop-title": encodeURIComponent(input.title),
+      "x-arcloop-description": encodeURIComponent(input.description ?? ""),
+      "x-arcloop-contribution-amount": encodeURIComponent(input.contributionAmount),
+      "x-arcloop-max-members": encodeURIComponent(String(input.maxMembers))
+    }
   });
 }
 
