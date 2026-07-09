@@ -88,6 +88,21 @@ export type SafeCircleError = {
   status: number | null;
 };
 
+const circleApiBaseUrl = "https://api.circle.com";
+const circleSocialDeviceTokenTimeoutMs = 10_000;
+const circleSocialDeviceTokenTimeoutMessage = "Circle social device token request timed out.";
+
+export class CircleSocialDeviceTokenError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+    readonly category: "timeout" | "upstream" | "network" | "invalid_response"
+  ) {
+    super(message);
+    this.name = "CircleSocialDeviceTokenError";
+  }
+}
+
 export const createPoolFunctionSignature = "createPool(address,uint256,uint256)";
 export const createPoolAbiParameterCount = 3;
 export const joinPoolFunctionSignature = "joinPool(uint256)";
@@ -113,6 +128,50 @@ function getClient() {
   return initiateUserControlledWalletsClient({
     apiKey: env.CIRCLE_API_KEY
   });
+}
+
+function getCircleErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidate = payload as {
+    message?: unknown;
+    error?: unknown;
+    errors?: unknown;
+  };
+
+  if (typeof candidate.message === "string" && candidate.message.trim()) {
+    return candidate.message;
+  }
+
+  if (typeof candidate.error === "string" && candidate.error.trim()) {
+    return candidate.error;
+  }
+
+  if (Array.isArray(candidate.errors) && candidate.errors.length > 0) {
+    const firstError = candidate.errors[0] as { message?: unknown } | undefined;
+    if (typeof firstError?.message === "string" && firstError.message.trim()) {
+      return firstError.message;
+    }
+  }
+
+  return null;
+}
+
+async function readJsonResponse(response: Response) {
+  try {
+    return (await response.json()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function logCircleSocialDeviceTokenResult(details: {
+  status: number | null;
+  category: "success" | CircleSocialDeviceTokenError["category"];
+}) {
+  console.info("[Circle social device token]", details);
 }
 
 function asAddress(value: unknown): Address | null {
@@ -238,9 +297,8 @@ export async function createSocialLoginDeviceToken(
   deviceId: string
 ): Promise<CircleSocialDeviceToken> {
   const config = getCircleConfigurationStatus();
-  const client = getClient();
 
-  if (!client || !hasSocialLoginConfig()) {
+  if (!env.CIRCLE_API_KEY || !hasSocialLoginConfig()) {
     return {
       ...config,
       deviceToken: null,
@@ -248,21 +306,88 @@ export async function createSocialLoginDeviceToken(
     };
   }
 
-  const response = await client.createDeviceTokenForSocialLogin({
-    deviceId,
-    idempotencyKey: randomUUID()
-  });
-  const data = response.data as
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, circleSocialDeviceTokenTimeoutMs);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${circleApiBaseUrl}/v1/w3s/users/social/token`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${env.CIRCLE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        idempotencyKey: randomUUID(),
+        deviceId
+      })
+    });
+  } catch (error) {
+    const isTimeout = error instanceof Error && error.name === "AbortError";
+    const category = isTimeout ? "timeout" : "network";
+
+    logCircleSocialDeviceTokenResult({
+      status: null,
+      category
+    });
+
+    throw new CircleSocialDeviceTokenError(
+      isTimeout ? circleSocialDeviceTokenTimeoutMessage : "Unable to reach Circle social device token endpoint.",
+      null,
+      category
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const payload = await readJsonResponse(response);
+
+  if (!response.ok) {
+    logCircleSocialDeviceTokenResult({
+      status: response.status,
+      category: "upstream"
+    });
+
+    throw new CircleSocialDeviceTokenError(
+      getCircleErrorMessage(payload) ?? "Circle social device token request failed.",
+      response.status,
+      "upstream"
+    );
+  }
+
+  const data = (payload as { data?: unknown } | null)?.data as
     | {
         deviceToken?: string;
         deviceEncryptionKey?: string;
       }
     | undefined;
 
+  if (!data?.deviceToken || !data.deviceEncryptionKey) {
+    logCircleSocialDeviceTokenResult({
+      status: response.status,
+      category: "invalid_response"
+    });
+
+    throw new CircleSocialDeviceTokenError(
+      "Circle social device token response was missing required fields.",
+      response.status,
+      "invalid_response"
+    );
+  }
+
+  logCircleSocialDeviceTokenResult({
+    status: response.status,
+    category: "success"
+  });
+
   return {
     ...config,
-    deviceToken: data?.deviceToken ?? null,
-    deviceEncryptionKey: data?.deviceEncryptionKey ?? null
+    deviceToken: data.deviceToken,
+    deviceEncryptionKey: data.deviceEncryptionKey
   };
 }
 

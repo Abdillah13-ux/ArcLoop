@@ -19,6 +19,7 @@ import {
 import {
   approveAbiParameterCount,
   approveFunctionSignature,
+  CircleSocialDeviceTokenError,
   contributeAbiParameterCount,
   contributeFunctionSignature,
   createCircleContractExecutionTransaction,
@@ -285,6 +286,16 @@ walletsRoutes.post("/wallets/circle/social-device-token", async (c) => {
       error: null
     });
   } catch (error) {
+    if (error instanceof CircleSocialDeviceTokenError) {
+      return c.json(
+        {
+          data: null,
+          error: error.message
+        },
+        error.category === "timeout" ? 504 : circleTransactionFailureStatus(error.status)
+      );
+    }
+
     return c.json(
       {
         data: null,
