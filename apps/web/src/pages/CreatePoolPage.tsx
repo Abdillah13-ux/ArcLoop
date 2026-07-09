@@ -1,7 +1,7 @@
 import { W3SSdk } from "@circle-fin/w3s-pw-web-sdk";
 import type { ChallengeCompleteCallback, SignTransactionResult } from "@circle-fin/w3s-pw-web-sdk/dist/src/types";
 import { FormEvent, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
@@ -13,7 +13,7 @@ import {
   Modal,
   TxStatusPanel
 } from "../components/UiKit";
-import { createPoolTransaction, finalizePoolTransaction, getCircleLoginConfig } from "../lib/api-client";
+import { ApiRequestError, createPoolTransaction, finalizePoolTransaction, getCircleLoginConfig } from "../lib/api-client";
 import { useCircleAuth } from "../lib/circle-auth";
 import type { CreatePoolTransactionResult, FinalizePoolTransactionResult } from "../types/api";
 
@@ -27,6 +27,8 @@ type PoolTransactionFlowStatus =
   | "TRANSACTION_TIMEOUT";
 
 const poolFinalizationTimeoutMs = 75_000;
+const sessionExpiredTitle = "Session expired";
+const sessionExpiredMessage = "Your wallet session needs to be refreshed before creating an on-chain pool.";
 
 class PoolFinalizationTimeoutError extends Error {
   constructor() {
@@ -44,6 +46,21 @@ function getSdkTransactionHash(challengeResult: unknown) {
   return transactionResult?.data?.txHash ?? null;
 }
 
+function isSessionExpiredError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+  const status = error instanceof ApiRequestError ? error.status : null;
+
+  return (
+    status === 401 ||
+    status === 403 ||
+    message.includes("invalid credentials") ||
+    message.includes("unauthorized") ||
+    message.includes("session expired") ||
+    message.includes("invalid user token") ||
+    message.includes("user token")
+  );
+}
+
 async function withPoolFinalizationTimeout<T>(promise: Promise<T>) {
   let timeoutId: ReturnType<typeof setTimeout>;
 
@@ -57,10 +74,11 @@ async function withPoolFinalizationTimeout<T>(promise: Promise<T>) {
 }
 
 export function CreatePoolPage() {
-  const { session } = useCircleAuth();
+  const navigate = useNavigate();
+  const { clearSession, session } = useCircleAuth();
   const [title, setTitle] = useState("ArcLoop Genesis Pool");
   const [description, setDescription] = useState(
-    "A two-member ArcLoop demo pool with fixed 5 USDC contributions on Arc Testnet."
+    "A transparent USDC rotating savings pool on Arc Testnet for the demo flow."
   );
   const [contributionAmount, setContributionAmount] = useState("5");
   const [maxMembers, setMaxMembers] = useState(2);
@@ -70,6 +88,7 @@ export function CreatePoolPage() {
   const [challengeStatus, setChallengeStatus] = useState<string | null>(null);
   const [executedTxHash, setExecutedTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
@@ -78,30 +97,42 @@ export function CreatePoolPage() {
   }
   const activeSession = session;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSubmitting(true);
+  function clearTransientState() {
     setError(null);
+    setIsSessionExpired(false);
     setResult(null);
     setFinalizedResult(null);
     setFlowStatus(null);
     setChallengeStatus(null);
     setExecutedTxHash(null);
+    setIsFinalizing(false);
+  }
+
+  function handleSessionRefresh() {
+    clearSession();
+    clearTransientState();
+    navigate("/login");
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    clearTransientState();
 
     try {
       const trimmedTitle = title.trim();
       const trimmedContributionAmount = contributionAmount.trim();
 
       if (!trimmedTitle) {
-        throw new Error("Add a clear pool title before creating the on-chain transaction.");
+        throw new Error("Add a pool title.");
       }
 
       if (!/^\d+(\.\d{1,6})?$/.test(trimmedContributionAmount) || Number(trimmedContributionAmount) <= 0) {
-        throw new Error("Contribution must be a positive USDC amount with up to 6 decimals.");
+        throw new Error("Enter a positive USDC amount.");
       }
 
       if (!Number.isInteger(maxMembers) || maxMembers < 2 || maxMembers > 100) {
-        throw new Error("Max members must be between 2 and 100.");
+        throw new Error("Choose 2 to 100 members.");
       }
 
       const input = {
@@ -155,6 +186,17 @@ export function CreatePoolPage() {
         });
 
         if (sdkError) {
+          if (isSessionExpiredError(sdkError)) {
+            setIsSessionExpired(true);
+            setError(sessionExpiredMessage);
+            setFlowStatus(null);
+            setResult(null);
+            setFinalizedResult(null);
+            setExecutedTxHash(null);
+            setIsFinalizing(false);
+            return;
+          }
+
           setFlowStatus("TRANSACTION_FAILED");
           setError(sdkError.message || "Circle transaction challenge failed.");
           return;
@@ -195,6 +237,14 @@ export function CreatePoolPage() {
             setFlowStatus("TRANSACTION_TIMEOUT");
           }
         } catch (caughtError) {
+          if (isSessionExpiredError(caughtError)) {
+            setIsSessionExpired(true);
+            setError(sessionExpiredMessage);
+            setFlowStatus(null);
+            setFinalizedResult(null);
+            return;
+          }
+
           setFlowStatus(
             caughtError instanceof PoolFinalizationTimeoutError
               ? "TRANSACTION_TIMEOUT"
@@ -212,9 +262,14 @@ export function CreatePoolPage() {
 
       sdk.execute(response.transaction.challengeId, onComplete);
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : "Unable to create pool transaction."
-      );
+      if (isSessionExpiredError(caughtError)) {
+        setIsSessionExpired(true);
+        setError(sessionExpiredMessage);
+      } else {
+        setError(
+          caughtError instanceof Error ? caughtError.message : "Unable to create pool transaction."
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -238,6 +293,7 @@ export function CreatePoolPage() {
     transactionHash && result
       ? `${result.request.explorerUrl.replace(/\/$/, "")}/tx/${transactionHash}`
       : null;
+  const hasStartedTransaction = Boolean(result?.transaction.challengeId || finalizedResult || transactionHash);
 
   return (
     <div className="page narrow-page">
@@ -258,7 +314,10 @@ export function CreatePoolPage() {
                 maxLength={120}
                 required
                 value={title}
-                onChange={(event) => setTitle(event.target.value)}
+                onChange={(event) => {
+                  clearTransientState();
+                  setTitle(event.target.value);
+                }}
               />
               <small>Use a short name people can recognize in the pool list.</small>
             </label>
@@ -268,7 +327,10 @@ export function CreatePoolPage() {
                 maxLength={1000}
                 rows={6}
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
+                onChange={(event) => {
+                  clearTransientState();
+                  setDescription(event.target.value);
+                }}
               />
               <small>Explain the group, contribution rhythm, or demo purpose.</small>
             </label>
@@ -280,7 +342,10 @@ export function CreatePoolPage() {
                   placeholder="5"
                   required
                   value={contributionAmount}
-                  onChange={(event) => setContributionAmount(event.target.value)}
+                  onChange={(event) => {
+                    clearTransientState();
+                    setContributionAmount(event.target.value);
+                  }}
                 />
                 <small>USDC per member, per round.</small>
               </label>
@@ -292,7 +357,10 @@ export function CreatePoolPage() {
                   required
                   type="number"
                   value={maxMembers}
-                  onChange={(event) => setMaxMembers(Number(event.target.value))}
+                  onChange={(event) => {
+                    clearTransientState();
+                    setMaxMembers(Number(event.target.value));
+                  }}
                 />
                 <small>The payout cycle completes after this many members.</small>
               </label>
@@ -321,9 +389,28 @@ export function CreatePoolPage() {
         </Card>
       </div>
 
-      {error ? <ErrorState title="Create pool could not continue" message={error} /> : null}
+      {isSessionExpired ? (
+        <Modal
+          actions={
+            <>
+              <button className="button primary" type="button" onClick={handleSessionRefresh}>
+                Sign in again
+              </button>
+              <Link className="button secondary" to="/dashboard">
+                Back to dashboard
+              </Link>
+            </>
+          }
+          status="SESSION_EXPIRED"
+          title={sessionExpiredTitle}
+        >
+          <p>{sessionExpiredMessage}</p>
+        </Modal>
+      ) : error ? (
+        <ErrorState title="Create pool could not continue" message={error} />
+      ) : null}
 
-      {result ? (
+      {result && hasStartedTransaction ? (
         <TxStatusPanel status={displayStatus ?? null} title="Create pool transaction">
           <p>{transactionMessage}</p>
           <InfoRow label="Contract" value={<AddressText value={result.request.contractAddress} />} />

@@ -29,6 +29,16 @@ async function parseJson<T>(response: Response): Promise<ApiResponse<T>> {
   }
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 function getErrorMessage(error: unknown) {
   if (!error) {
     return null;
@@ -56,7 +66,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const apiError = getErrorMessage(payload.error);
 
   if (!response.ok || apiError) {
-    throw new Error(apiError ?? `Request failed with status ${response.status}.`);
+    throw new ApiRequestError(apiError ?? `Request failed with status ${response.status}.`, response.status);
   }
 
   if (payload.data === null) {
