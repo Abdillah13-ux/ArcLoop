@@ -29,6 +29,15 @@ type PoolTransactionFlowStatus =
 const poolFinalizationTimeoutMs = 75_000;
 const sessionExpiredTitle = "Session expired";
 const sessionExpiredMessage = "Your wallet session needs to be refreshed before creating an on-chain pool.";
+const safeErrorKeys = ["message", "code", "error", "errorCode", "reason", "status", "name"] as const;
+
+type SafeErrorInfo = {
+  codes: string[];
+  messages: string[];
+  names: string[];
+  statuses: number[];
+  text: string;
+};
 
 class PoolFinalizationTimeoutError extends Error {
   constructor() {
@@ -46,18 +55,98 @@ function getSdkTransactionHash(challengeResult: unknown) {
   return transactionResult?.data?.txHash ?? null;
 }
 
+function readSafeErrorInfo(error: unknown, depth = 0, seen = new Set<unknown>()): SafeErrorInfo {
+  const info: SafeErrorInfo = {
+    codes: [],
+    messages: [],
+    names: [],
+    statuses: [],
+    text: ""
+  };
+
+  if (error === null || error === undefined || depth > 3 || seen.has(error)) {
+    return info;
+  }
+
+  if (typeof error === "string" || typeof error === "number" || typeof error === "boolean") {
+    info.text = String(error);
+    info.messages.push(info.text);
+    return info;
+  }
+
+  if (error instanceof Error) {
+    info.text = String(error);
+    info.messages.push(error.message);
+    info.names.push(error.name);
+  } else {
+    info.text = String(error);
+  }
+
+  if (typeof error !== "object") {
+    return info;
+  }
+
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+
+  for (const key of safeErrorKeys) {
+    const value = record[key];
+
+    if (typeof value === "string" || typeof value === "number") {
+      const stringValue = String(value);
+      if (key === "status" && typeof value === "number") {
+        info.statuses.push(value);
+      } else if (key === "code" || key === "errorCode") {
+        info.codes.push(stringValue);
+      } else if (key === "name") {
+        info.names.push(stringValue);
+      } else {
+        info.messages.push(stringValue);
+      }
+    }
+  }
+
+  if (error instanceof ApiRequestError) {
+    info.statuses.push(error.status);
+  }
+
+  for (const nestedKey of ["cause", "error", "networkError", "graphQLErrors", "errors"]) {
+    const nestedValue = record[nestedKey];
+    const nestedValues = Array.isArray(nestedValue) ? nestedValue : [nestedValue];
+
+    for (const value of nestedValues) {
+      const nested = readSafeErrorInfo(value, depth + 1, seen);
+      info.codes.push(...nested.codes);
+      info.messages.push(...nested.messages);
+      info.names.push(...nested.names);
+      info.statuses.push(...nested.statuses);
+      if (nested.text) {
+        info.text = `${info.text} ${nested.text}`.trim();
+      }
+    }
+  }
+
+  return info;
+}
+
 function isSessionExpiredError(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
-  const status = error instanceof ApiRequestError ? error.status : null;
+  const safeError = readSafeErrorInfo(error);
+  const haystack = [
+    safeError.text,
+    ...safeError.messages,
+    ...safeError.codes,
+    ...safeError.names
+  ].join(" ").toLowerCase();
 
   return (
-    status === 401 ||
-    status === 403 ||
-    message.includes("invalid credentials") ||
-    message.includes("unauthorized") ||
-    message.includes("session expired") ||
-    message.includes("invalid user token") ||
-    message.includes("user token")
+    safeError.statuses.includes(401) ||
+    safeError.statuses.includes(403) ||
+    haystack.includes("invalid credentials") ||
+    haystack.includes("app10error") ||
+    haystack.includes("unauthorized") ||
+    haystack.includes("session expired") ||
+    haystack.includes("invalid user token") ||
+    haystack.includes("user token")
   );
 }
 
@@ -112,6 +201,27 @@ export function CreatePoolPage() {
     clearSession();
     clearTransientState();
     navigate("/login");
+  }
+
+  function showSessionExpiredState() {
+    setIsSessionExpired(true);
+    setError(sessionExpiredMessage);
+    setResult(null);
+    setFinalizedResult(null);
+    setFlowStatus(null);
+    setChallengeStatus(null);
+    setExecutedTxHash(null);
+    setIsFinalizing(false);
+  }
+
+  function showPreSubmissionFailure(message: string) {
+    setError(message);
+    setResult(null);
+    setFinalizedResult(null);
+    setFlowStatus(null);
+    setChallengeStatus(null);
+    setExecutedTxHash(null);
+    setIsFinalizing(false);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -187,18 +297,17 @@ export function CreatePoolPage() {
 
         if (sdkError) {
           if (isSessionExpiredError(sdkError)) {
-            setIsSessionExpired(true);
-            setError(sessionExpiredMessage);
-            setFlowStatus(null);
-            setResult(null);
-            setFinalizedResult(null);
-            setExecutedTxHash(null);
-            setIsFinalizing(false);
+            showSessionExpiredState();
             return;
           }
 
           setFlowStatus("TRANSACTION_FAILED");
           setError(sdkError.message || "Circle transaction challenge failed.");
+          return;
+        }
+
+        if (!challengeResult?.status && getObjectKeys(challengeResult).length === 0) {
+          showSessionExpiredState();
           return;
         }
 
@@ -238,10 +347,7 @@ export function CreatePoolPage() {
           }
         } catch (caughtError) {
           if (isSessionExpiredError(caughtError)) {
-            setIsSessionExpired(true);
-            setError(sessionExpiredMessage);
-            setFlowStatus(null);
-            setFinalizedResult(null);
+            showSessionExpiredState();
             return;
           }
 
@@ -263,10 +369,9 @@ export function CreatePoolPage() {
       sdk.execute(response.transaction.challengeId, onComplete);
     } catch (caughtError) {
       if (isSessionExpiredError(caughtError)) {
-        setIsSessionExpired(true);
-        setError(sessionExpiredMessage);
+        showSessionExpiredState();
       } else {
-        setError(
+        showPreSubmissionFailure(
           caughtError instanceof Error ? caughtError.message : "Unable to create pool transaction."
         );
       }
@@ -293,7 +398,9 @@ export function CreatePoolPage() {
     transactionHash && result
       ? `${result.request.explorerUrl.replace(/\/$/, "")}/tx/${transactionHash}`
       : null;
-  const hasStartedTransaction = Boolean(result?.transaction.challengeId || finalizedResult || transactionHash);
+  const hasStartedTransaction = Boolean(
+    !isSessionExpired && ((result && result.transaction.challengeId) || finalizedResult || transactionHash)
+  );
 
   return (
     <div className="page narrow-page">
@@ -305,7 +412,7 @@ export function CreatePoolPage() {
         </p>
       </div>
 
-      <div className="split-grid">
+      <div className="split-grid create-pool-grid">
         <Card>
           <form className="form-stack" onSubmit={handleSubmit}>
             <label className="field">
@@ -410,7 +517,7 @@ export function CreatePoolPage() {
         <ErrorState title="Create pool could not continue" message={error} />
       ) : null}
 
-      {result && hasStartedTransaction ? (
+      {hasStartedTransaction && result ? (
         <TxStatusPanel status={displayStatus ?? null} title="Create pool transaction">
           <p>{transactionMessage}</p>
           <InfoRow label="Contract" value={<AddressText value={result.request.contractAddress} />} />

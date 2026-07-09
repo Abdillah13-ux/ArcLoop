@@ -607,6 +607,10 @@ button {
   align-items: start;
 }
 
+.create-pool-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.72fr);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
@@ -925,6 +929,12 @@ button {
 
   .preview-card {
     position: static;
+  }
+}
+
+@media (max-width: 1080px) {
+  .create-pool-grid {
+    grid-template-columns: 1fr;
   }
 }
 
