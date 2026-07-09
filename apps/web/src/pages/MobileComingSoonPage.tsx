@@ -6,22 +6,34 @@ export function MobileComingSoonPage() {
   return (
     <div className="page narrow-page">
       <div className="page-heading">
-        <h1>Native mobile app planned after funding</h1>
+        <h1>Mobile-first experience, web demo today.</h1>
         <p>
-          This web app is the public demo and submission frontend for ArcLoop. The native
-          app remains planned for a later phase.
+          ArcLoop is designed for savings groups that coordinate from phones. This
+          production MVP ships as a responsive web app while the native app remains planned.
         </p>
       </div>
-      <Card>
-        <h2>Current submission scope</h2>
-        <p>
-          This milestone focuses on a clear read-only web preview of fixed USDC contributions,
-          payout order, settlement status, and verifiable pool metadata.
-        </p>
-        <Link className="button primary full-width" to="/">
-          Back to web demo
+      <div className="section-grid">
+        <Card>
+          <h2>Responsive now</h2>
+          <p>Create, join, approve, and contribute flows are available in the browser.</p>
+        </Card>
+        <Card>
+          <h2>Native later</h2>
+          <p>The next phase can wrap the same Circle and Arc transaction flow in mobile UI.</p>
+        </Card>
+        <Card>
+          <h2>Demo path</h2>
+          <p>Use the web app to prove the full rotating savings lifecycle on Arc Testnet.</p>
+        </Card>
+      </div>
+      <div className="button-row">
+        <Link className="button primary" to="/pools">
+          View pools
         </Link>
-      </Card>
+        <Link className="button secondary" to="/dashboard">
+          Open dashboard
+        </Link>
+      </div>
     </div>
   );
 }

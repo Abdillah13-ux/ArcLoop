@@ -3,7 +3,7 @@ type ErrorStateProps = {
   message: string;
 };
 
-export function ErrorState({ title = "Unable to load data", message }: ErrorStateProps) {
+export function ErrorState({ title = "Request needs attention", message }: ErrorStateProps) {
   return (
     <div className="state-box error-state" role="alert">
       <h2>{title}</h2>

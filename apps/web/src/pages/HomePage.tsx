@@ -4,12 +4,9 @@ import { Link } from "react-router-dom";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { AddressText, InfoRow } from "../components/UiKit";
 import { getContractInfo, getHealth } from "../lib/api-client";
 import type { ContractInfo, HealthInfo } from "../types/api";
-
-function shortenAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
 export function HomePage() {
   const [contractInfo, setContractInfo] = useState<ContractInfo | null>(null);
@@ -75,9 +72,9 @@ export function HomePage() {
           {error ? <ErrorState message={error} /> : null}
           {contractInfo ? (
             <div className="metric-stack">
-              <InfoRow label="Contract" value={shortenAddress(contractInfo.address)} />
+              <InfoRow label="Contract" value={<AddressText value={contractInfo.address} />} />
               <InfoRow label="Chain ID" value={String(contractInfo.chainId)} />
-              <InfoRow label="USDC" value={shortenAddress(contractInfo.usdcTokenAddress)} />
+              <InfoRow label="USDC" value={<AddressText value={contractInfo.usdcTokenAddress} />} />
             </div>
           ) : null}
           <div className="proof-rail" aria-label="ArcLoop settlement model">
@@ -120,15 +117,6 @@ export function HomePage() {
           <p>Events are indexed for a clear public record of contributions and payouts.</p>
         </Card>
       </section>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="info-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
     </div>
   );
 }

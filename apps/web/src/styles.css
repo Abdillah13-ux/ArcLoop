@@ -213,6 +213,12 @@ button {
   color: var(--muted);
 }
 
+.button.danger {
+  background: rgba(255, 142, 154, 0.1);
+  border: 1px solid rgba(255, 142, 154, 0.32);
+  color: #ffc1c8;
+}
+
 .button:hover {
   transform: translateY(-1px);
 }
@@ -242,6 +248,19 @@ button {
   box-shadow: var(--shadow);
   padding: 1.35rem;
   position: relative;
+}
+
+.card.compact {
+  box-shadow: none;
+  padding: 1rem;
+}
+
+.card.accent-card {
+  border-color: rgba(60, 230, 198, 0.26);
+  background:
+    radial-gradient(circle at top right, rgba(60, 230, 198, 0.16), transparent 16rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    var(--surface);
 }
 
 .hero-panel {
@@ -322,6 +341,37 @@ button {
 
 .detail-row strong {
   text-align: left;
+}
+
+.inline-value {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.icon-button,
+.mini-link {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.065);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0.32rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.mini-link:hover,
+.icon-button:hover {
+  border-color: rgba(60, 230, 198, 0.42);
+  color: var(--text);
 }
 
 .section-grid,
@@ -454,6 +504,11 @@ button {
   font-size: 1.15rem;
 }
 
+.empty-state {
+  justify-items: start;
+  text-align: left;
+}
+
 .state-box p {
   color: var(--muted);
   line-height: 1.55;
@@ -545,6 +600,48 @@ button {
   gap: 1rem;
 }
 
+.split-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+}
+
+.stat-card span {
+  color: var(--soft);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat-card strong {
+  color: var(--text);
+  font-size: 1.08rem;
+}
+
 .form-stack {
   display: grid;
   gap: 1rem;
@@ -567,6 +664,11 @@ button {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.field small {
+  color: var(--soft);
+  line-height: 1.45;
 }
 
 .field input,
@@ -616,8 +718,167 @@ button {
   color: var(--muted);
 }
 
+.advanced-details {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 0.85rem 1rem;
+}
+
+.advanced-details summary {
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.advanced-details > div {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
 .result-card {
   margin-top: 1rem;
+}
+
+.progress-block {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.progress-label {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.progress-label span {
+  color: var(--soft);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.progress-label strong {
+  color: var(--text);
+}
+
+.progress-track {
+  background: rgba(255, 255, 255, 0.065);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-track span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  display: block;
+  height: 100%;
+}
+
+.progress-steps {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.progress-steps li {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: 2rem 1fr;
+  padding: 0.65rem;
+}
+
+.progress-steps li span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 900;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+.progress-steps li strong {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.progress-steps li.is-complete,
+.progress-steps li.is-current {
+  border-color: rgba(60, 230, 198, 0.28);
+}
+
+.progress-steps li.is-complete span,
+.progress-steps li.is-current span {
+  background: rgba(60, 230, 198, 0.14);
+  color: var(--accent);
+}
+
+.progress-steps li.is-current strong,
+.progress-steps li.is-complete strong {
+  color: var(--text);
+}
+
+.progress-steps li.is-failed {
+  border-color: rgba(255, 142, 154, 0.32);
+}
+
+.tx-panel,
+.modal-card {
+  display: grid;
+  gap: 1rem;
+  background:
+    linear-gradient(180deg, rgba(60, 230, 198, 0.08), rgba(118, 169, 255, 0.045)),
+    var(--surface-strong);
+  border: 1px solid rgba(60, 230, 198, 0.26);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  margin-top: 1rem;
+  padding: 1.2rem;
+}
+
+.tx-panel-body,
+.modal-body {
+  color: var(--muted);
+  display: grid;
+  gap: 0.75rem;
+  line-height: 1.55;
+}
+
+.preview-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.list-row {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.8rem;
+}
+
+.list-row strong {
+  color: var(--text);
+}
+
+.list-row span {
+  color: var(--muted);
 }
 
 @keyframes spin {
@@ -655,8 +916,15 @@ button {
 
   .section-grid,
   .pool-grid,
-  .form-grid {
+  .form-grid,
+  .split-grid,
+  .dashboard-grid,
+  .stat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .preview-card {
+    position: static;
   }
 }
 

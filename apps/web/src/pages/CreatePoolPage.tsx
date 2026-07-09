@@ -5,6 +5,14 @@ import { Link, Navigate } from "react-router-dom";
 
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
+import {
+  AddressText,
+  ExplorerLink,
+  formatStateLabel,
+  InfoRow,
+  Modal,
+  TxStatusPanel
+} from "../components/UiKit";
 import { createPoolTransaction, finalizePoolTransaction, getCircleLoginConfig } from "../lib/api-client";
 import { useCircleAuth } from "../lib/circle-auth";
 import type { CreatePoolTransactionResult, FinalizePoolTransactionResult } from "../types/api";
@@ -50,9 +58,11 @@ async function withPoolFinalizationTimeout<T>(promise: Promise<T>) {
 
 export function CreatePoolPage() {
   const { session } = useCircleAuth();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [contributionAmount, setContributionAmount] = useState("");
+  const [title, setTitle] = useState("ArcLoop Genesis Pool");
+  const [description, setDescription] = useState(
+    "A two-member ArcLoop demo pool with fixed 5 USDC contributions on Arc Testnet."
+  );
+  const [contributionAmount, setContributionAmount] = useState("5");
   const [maxMembers, setMaxMembers] = useState(2);
   const [result, setResult] = useState<CreatePoolTransactionResult | null>(null);
   const [finalizedResult, setFinalizedResult] = useState<FinalizePoolTransactionResult | null>(null);
@@ -79,10 +89,25 @@ export function CreatePoolPage() {
     setExecutedTxHash(null);
 
     try {
+      const trimmedTitle = title.trim();
+      const trimmedContributionAmount = contributionAmount.trim();
+
+      if (!trimmedTitle) {
+        throw new Error("Add a clear pool title before creating the on-chain transaction.");
+      }
+
+      if (!/^\d+(\.\d{1,6})?$/.test(trimmedContributionAmount) || Number(trimmedContributionAmount) <= 0) {
+        throw new Error("Contribution must be a positive USDC amount with up to 6 decimals.");
+      }
+
+      if (!Number.isInteger(maxMembers) || maxMembers < 2 || maxMembers > 100) {
+        throw new Error("Max members must be between 2 and 100.");
+      }
+
       const input = {
-        title,
+        title: trimmedTitle,
         description: description.trim() || undefined,
-        contributionAmount,
+        contributionAmount: trimmedContributionAmount,
         maxMembers
       };
 
@@ -140,7 +165,7 @@ export function CreatePoolPage() {
 
         if (challengeResult?.status !== "COMPLETE") {
           setFlowStatus("TRANSACTION_FAILED");
-          setError(`Circle transaction challenge ${formatState(challengeResult?.status ?? "UNKNOWN")}.`);
+          setError(`Circle transaction challenge ${formatStateLabel(challengeResult?.status ?? "UNKNOWN")}.`);
           return;
         }
 
@@ -201,7 +226,9 @@ export function CreatePoolPage() {
     finalizedResult?.transaction.transactionId ?? result?.transaction.transactionId ?? "Not submitted";
   const transactionMessage =
     finalizedResult?.transaction.message ??
-    (isFinalizing ? "Challenge complete. Waiting for Circle transaction submission." : result?.transaction.message);
+    (isFinalizing
+      ? "Wallet approval is complete. ArcLoop is waiting for Circle to expose the submitted transaction."
+      : result?.transaction.message);
   const displayStatus =
     flowStatus ??
     finalizedResult?.transaction.status ??
@@ -216,110 +243,126 @@ export function CreatePoolPage() {
     <div className="page narrow-page">
       <div className="page-heading">
         <h1>Create pool</h1>
-        <p>Submit a fixed-contribution USDC pool creation transaction through the Circle wallet flow.</p>
+        <p>
+          Set the pool terms, preview the contribution model, then approve one on-chain
+          contract transaction through your Circle wallet.
+        </p>
       </div>
 
-      <Card>
-        <form className="form-stack" onSubmit={handleSubmit}>
-          <label className="field">
-            <span>Title</span>
-            <input
-              maxLength={120}
-              required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>Description</span>
-            <textarea
-              maxLength={1000}
-              rows={4}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
-          <div className="form-grid">
+      <div className="split-grid">
+        <Card>
+          <form className="form-stack" onSubmit={handleSubmit}>
             <label className="field">
-              <span>Contribution amount</span>
+              <span>Pool title</span>
               <input
-                inputMode="decimal"
-                placeholder="25.00"
+                maxLength={120}
                 required
-                value={contributionAmount}
-                onChange={(event) => setContributionAmount(event.target.value)}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
               />
+              <small>Use a short name people can recognize in the pool list.</small>
             </label>
             <label className="field">
-              <span>Max members</span>
-              <input
-                min={2}
-                max={100}
-                required
-                type="number"
-                value={maxMembers}
-                onChange={(event) => setMaxMembers(Number(event.target.value))}
+              <span>Description</span>
+              <textarea
+                maxLength={1000}
+                rows={6}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
               />
+              <small>Explain the group, contribution rhythm, or demo purpose.</small>
             </label>
-          </div>
-          <button className="button primary" disabled={isSubmitting || isFinalizing} type="submit">
-            {isSubmitting
-              ? "Preparing transaction..."
-              : isFinalizing
-                ? "Finalizing transaction..."
-                : "Create transaction"}
-          </button>
-        </form>
-      </Card>
+            <div className="form-grid">
+              <label className="field">
+                <span>Contribution amount</span>
+                <input
+                  inputMode="decimal"
+                  placeholder="5"
+                  required
+                  value={contributionAmount}
+                  onChange={(event) => setContributionAmount(event.target.value)}
+                />
+                <small>USDC per member, per round.</small>
+              </label>
+              <label className="field">
+                <span>Max members</span>
+                <input
+                  min={2}
+                  max={100}
+                  required
+                  type="number"
+                  value={maxMembers}
+                  onChange={(event) => setMaxMembers(Number(event.target.value))}
+                />
+                <small>The payout cycle completes after this many members.</small>
+              </label>
+            </div>
+            <button className="button primary" disabled={isSubmitting || isFinalizing} type="submit">
+              {isSubmitting
+                ? "Preparing transaction..."
+                : isFinalizing
+                  ? "Finalizing transaction..."
+                  : "Create on-chain pool"}
+            </button>
+          </form>
+        </Card>
 
-      {error ? <ErrorState message={error} /> : null}
+        <Card className="preview-card accent-card">
+          <h2>Pool preview</h2>
+          <p>Creating a pool writes these terms to the deployed ArcLoop smart contract.</p>
+          <InfoRow label="Title" value={title || "ArcLoop Genesis Pool"} />
+          <InfoRow label="Contribution" value={`${contributionAmount || "5"} USDC`} />
+          <InfoRow label="Members" value={`${maxMembers} total`} />
+          <InfoRow label="Rounds" value={`${maxMembers} payout rounds`} />
+          <div className="notice">
+            <strong>What happens next</strong>
+            <span>Circle opens a wallet approval prompt, then ArcLoop waits for the transaction hash.</span>
+          </div>
+        </Card>
+      </div>
+
+      {error ? <ErrorState title="Create pool could not continue" message={error} /> : null}
 
       {result ? (
-        <Card className="result-card">
-          <div className="card-heading">
-            <h2>Transaction status</h2>
-            <span className="status-pill">
-              {displayStatus ? formatState(displayStatus) : "Unknown"}
-            </span>
-          </div>
+        <TxStatusPanel status={displayStatus ?? null} title="Create pool transaction">
           <p>{transactionMessage}</p>
-          <InfoRow label="Contract" value={result.request.contractAddress} />
-          <InfoRow label="USDC" value={result.request.usdcTokenAddress} />
+          <InfoRow label="Contract" value={<AddressText value={result.request.contractAddress} />} />
+          <InfoRow label="USDC" value={<AddressText value={result.request.usdcTokenAddress} />} />
           <InfoRow label="Transaction ID" value={transactionId} />
-          <InfoRow label="Transaction hash" value={transactionHash ?? "Not available"} />
+          <InfoRow
+            action={
+              explorerLink && transactionHash ? <ExplorerLink href={explorerLink} label="Arcscan" /> : null
+            }
+            label="Transaction hash"
+            value={transactionHash ? <AddressText value={transactionHash} /> : "Not available yet"}
+          />
           {finalizedResult?.poolMetadata ? (
             <InfoRow
               label="Pool"
               value={`${finalizedResult.poolMetadata.pool.title} (#${finalizedResult.poolMetadata.pool.onchainPoolId})`}
             />
           ) : null}
-          {explorerLink ? (
-            <a className="button secondary" href={explorerLink} rel="noreferrer" target="_blank">
-              View transaction
-            </a>
-          ) : null}
-          <Link className="button ghost" to="/dashboard">
-            Back to dashboard
-          </Link>
-        </Card>
+          <div className="button-row">
+            {explorerLink ? (
+              <a className="button secondary" href={explorerLink} rel="noreferrer" target="_blank">
+                View transaction
+              </a>
+            ) : null}
+            <Link className="button secondary" to="/pools">
+              Back to pools
+            </Link>
+            <Link className="button ghost" to="/dashboard">
+              Dashboard
+            </Link>
+          </div>
+        </TxStatusPanel>
       ) : null}
-    </div>
-  );
-}
 
-function formatState(state: string) {
-  return state
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
+      {displayStatus === "TRANSACTION_CONFIRMED" ? (
+        <Modal title="Pool created" status="TRANSACTION_CONFIRMED">
+          <p>Your pool transaction is confirmed. Refresh the pool list if the new pool is still syncing.</p>
+        </Modal>
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { AddressText, ExplorerLink, InfoRow } from "../components/UiKit";
 import { getContractInfo } from "../lib/api-client";
 import type { ContractInfo } from "../types/api";
 
@@ -40,29 +41,56 @@ export function ContractsPage() {
     <div className="page narrow-page">
       <div className="page-heading">
         <h1>Contract reference</h1>
-        <p>Read-only Arc Testnet deployment details used by the ArcLoop API.</p>
+        <p>
+          Verified Arc Testnet deployment details for the rotating savings pool contract
+          used by the production MVP demo.
+        </p>
       </div>
 
       {isLoading ? <LoadingState message="Loading contract info..." /> : null}
       {error ? <ErrorState message={error} /> : null}
 
       {contractInfo ? (
-        <Card>
-          <InfoRow label="Chain ID" value={String(contractInfo.chainId)} />
-          <InfoRow label="Contract address" value={contractInfo.address} />
-          <InfoRow label="USDC token address" value={contractInfo.usdcTokenAddress} />
-          <InfoRow label="Explorer URL" value={contractInfo.explorerUrl} />
-        </Card>
-      ) : null}
-    </div>
-  );
-}
+        <div className="detail-stack">
+          <Card className="accent-card">
+            <div className="card-heading">
+              <h2>Deployment</h2>
+              <span className="status-pill status-active">Verified testnet</span>
+            </div>
+            <p>
+              Create, join, approve, and contribute transactions are sent through Circle
+              and confirmed against this Arc Testnet deployment.
+            </p>
+            <InfoRow label="Chain ID" value={String(contractInfo.chainId)} />
+            <InfoRow
+              action={<ExplorerLink href={`${contractInfo.explorerUrl.replace(/\/$/, "")}/address/${contractInfo.address}`} label="Arcscan" />}
+              label="Contract"
+              value={<AddressText value={contractInfo.address} />}
+            />
+            <InfoRow
+              action={<ExplorerLink href={`${contractInfo.explorerUrl.replace(/\/$/, "")}/address/${contractInfo.usdcTokenAddress}`} label="Arcscan" />}
+              label="USDC token"
+              value={<AddressText value={contractInfo.usdcTokenAddress} />}
+            />
+            <InfoRow label="Explorer" value={contractInfo.explorerUrl} />
+          </Card>
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
+          <section className="section-grid">
+            <Card className="compact">
+              <h2>Create pool</h2>
+              <p>Defines fixed USDC amount, max members, and payout rounds on-chain.</p>
+            </Card>
+            <Card className="compact">
+              <h2>Join and approve</h2>
+              <p>Members join the order and approve USDC before contributing.</p>
+            </Card>
+            <Card className="compact">
+              <h2>Contribute</h2>
+              <p>Confirmed contributions advance each round until the pool completes.</p>
+            </Card>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

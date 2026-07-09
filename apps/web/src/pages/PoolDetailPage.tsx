@@ -6,7 +6,17 @@ import { Link, useParams } from "react-router-dom";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
-import { StatusPill } from "../components/StatusPill";
+import {
+  AddressText,
+  ExplorerLink,
+  formatStateLabel,
+  formatUsdcAmount,
+  InfoRow,
+  Modal,
+  ProgressBar,
+  StatusBadge,
+  TxStatusPanel
+} from "../components/UiKit";
 import {
   createPoolApproveTransaction,
   createPoolContributeTransaction,
@@ -140,7 +150,7 @@ export function PoolDetailPage() {
 
         if (challengeResult?.status !== "COMPLETE") {
           setFlowStatus("TRANSACTION_FAILED");
-          setError(`Circle challenge ${formatState(challengeResult?.status ?? "UNKNOWN")}.`);
+          setError(`Circle challenge ${formatStateLabel(challengeResult?.status ?? "UNKNOWN")}.`);
           setIsWorking(false);
           return;
         }
@@ -223,35 +233,55 @@ export function PoolDetailPage() {
   return (
     <div className="page narrow-page">
       {isLoading ? <LoadingState message="Loading pool..." /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState title="Pool status needs attention" message={error} /> : null}
 
       {pool && detail && chainState ? (
         <>
           <div className="page-heading">
             <h1>{pool.title}</h1>
-            <StatusPill status={pool.status} />
+            <StatusBadge status={pool.status} />
             <p>{pool.description ?? "ArcLoop pool mirrored from Arc Testnet."}</p>
           </div>
           <div className="detail-stack">
-            <Card>
+            <Card className="accent-card">
               <div className="card-heading">
                 <h2>Pool terms</h2>
-                <StatusPill status={pool.status} />
+                <StatusBadge status={pool.status} />
               </div>
-              <InfoRow label="Contribution amount" value={pool.contributionAmount} />
-              <InfoRow label="Members joined" value={`${chainState.members.length} / ${pool.maxMembers}`} />
+              <div className="stat-grid">
+                <div className="stat-card">
+                  <span>Contribution</span>
+                  <strong>{formatUsdcAmount(pool.contributionAmount)}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>Members</span>
+                  <strong>{chainState.members.length} / {pool.maxMembers}</strong>
+                </div>
+                <div className="stat-card">
+                  <span>Round</span>
+                  <strong>{pool.currentRound}</strong>
+                </div>
+              </div>
+              <ProgressBar label="Members joined" max={pool.maxMembers} value={chainState.members.length} />
+              <ProgressBar
+                label="Round contributions"
+                max={pool.maxMembers}
+                value={chainState.contributionProgress}
+              />
               <InfoRow label="Current round" value={String(pool.currentRound)} />
-              <InfoRow label="Current recipient" value={chainState.currentRecipient ?? "Not active"} />
               <InfoRow
-                label="Contribution progress"
-                value={`${chainState.contributionProgress} / ${pool.maxMembers}`}
+                label="Current recipient"
+                value={chainState.currentRecipient ? <AddressText value={chainState.currentRecipient} /> : "Not active"}
               />
               <InfoRow label="Invite code" value={pool.inviteCode} />
               <InfoRow label="On-chain pool ID" value={String(pool.onchainPoolId)} />
             </Card>
 
             <Card>
-              <h2>Participation</h2>
+              <div className="card-heading">
+                <h2>Required action</h2>
+                <StatusBadge status={chainState.nextRequiredAction} />
+              </div>
               {chainState.contractGaps.length > 0 ? (
                 <div className="state-box warning-state">
                   <h2>Contract lifecycle gap</h2>
@@ -260,6 +290,7 @@ export function PoolDetailPage() {
                   ))}
                 </div>
               ) : null}
+              <p>{getActionGuidance(chainState.nextRequiredAction, pool.status)}</p>
               {session ? (
                 <>
                   {canJoin ? (
@@ -312,11 +343,11 @@ export function PoolDetailPage() {
                   Sign in with Circle
                 </Link>
               )}
-              <InfoRow label="Flow status" value={formatState(flowStatus)} />
-              <InfoRow label="Action" value={activeAction ? formatState(activeAction) : "None"} />
+              <InfoRow label="Flow status" value={formatStateLabel(flowStatus)} />
+              <InfoRow label="Action" value={activeAction ? formatStateLabel(activeAction) : "None"} />
               <InfoRow label="Next required action" value={chainState.nextRequiredAction} />
               <InfoRow
-                label="Current wallet joined"
+                label="Joined"
                 value={formatNullableBoolean(viewer?.hasCurrentUserJoined ?? null)}
               />
               <InfoRow
@@ -327,7 +358,11 @@ export function PoolDetailPage() {
                 label="USDC allowance"
                 value={formatNullableBoolean(viewer?.allowanceSufficient ?? null)}
               />
-              <InfoRow label="Transaction hash" value={transactionHash ?? "Not available"} />
+              <InfoRow
+                action={explorerLink ? <ExplorerLink href={explorerLink} label="Arcscan" /> : null}
+                label="Transaction hash"
+                value={transactionHash ? <AddressText value={transactionHash} /> : "Not available"}
+              />
               {transactionMessage ? <p>{transactionMessage}</p> : null}
               {explorerLink ? (
                 <a className="button secondary full-width" href={explorerLink} rel="noreferrer" target="_blank">
@@ -338,25 +373,43 @@ export function PoolDetailPage() {
 
             <Card>
               <h2>Members</h2>
-              {detail.members.length === 0 ? <p>No members have joined yet.</p> : null}
+              {detail.members.length === 0 ? (
+                <p>
+                  {chainState.members.length > 0
+                    ? "Member count is synced on-chain. Detailed member rows are still catching up."
+                    : "No members have joined yet."}
+                </p>
+              ) : null}
               {detail.members.map((member) => (
                 <InfoRow
                   key={member.id}
                   label={`Member ${member.memberIndex + 1}`}
-                  value={member.memberAddress}
+                  value={<AddressText value={member.memberAddress} />}
                 />
               ))}
             </Card>
 
             <Card>
               <h2>Current round</h2>
-              <InfoRow label="Recipient" value={chainState.currentRecipient ?? currentRound?.recipientAddress ?? "Not active"} />
+              <InfoRow
+                label="Recipient"
+                value={
+                  chainState.currentRecipient ?? currentRound?.recipientAddress ? (
+                    <AddressText value={chainState.currentRecipient ?? currentRound?.recipientAddress ?? ""} />
+                  ) : (
+                    "Not active"
+                  )
+                }
+              />
               <InfoRow
                 label="Contributions"
                 value={`${chainState.contributionProgress} / ${pool.maxMembers}`}
               />
-              <InfoRow label="Payout amount" value={currentRound?.payoutAmount ?? "Not started"} />
-              <InfoRow label="Last payout hash" value={latestPayoutRound?.payoutTxHash ?? "Not available"} />
+              <InfoRow label="Payout amount" value={currentRound ? formatUsdcAmount(currentRound.payoutAmount) : "Not started"} />
+              <InfoRow
+                label="Last payout hash"
+                value={latestPayoutRound?.payoutTxHash ? <AddressText value={latestPayoutRound.payoutTxHash} /> : "Not available"}
+              />
             </Card>
 
             <Card>
@@ -366,19 +419,47 @@ export function PoolDetailPage() {
                 <InfoRow
                   key={contribution.id}
                   label={`Round ${contribution.roundIndex}`}
-                  value={`${contribution.amount} from ${shortAddress(contribution.memberAddress)}`}
+                  value={`${formatUsdcAmount(contribution.amount)} from ${shortAddress(contribution.memberAddress)}`}
                 />
               ))}
             </Card>
 
             <Card>
               <h2>Verification</h2>
-              <InfoRow label="Creator" value={pool.creatorAddress} />
-              <InfoRow label="Token" value={pool.tokenAddress} />
-              <InfoRow label="Contract" value={pool.contractAddress} />
+              <InfoRow label="Creator" value={<AddressText value={pool.creatorAddress} />} />
+              <InfoRow label="Token" value={<AddressText value={pool.tokenAddress} />} />
+              <InfoRow label="Contract" value={<AddressText value={pool.contractAddress} />} />
               <InfoRow label="Chain ID" value={String(pool.chainId)} />
             </Card>
           </div>
+          {flowStatus !== "READY" ? (
+            <TxStatusPanel
+              status={flowStatus}
+              title={`${activeAction ? formatStateLabel(activeAction) : "Pool"} transaction`}
+              actions={
+                <>
+                  <button className="button secondary" type="button" onClick={() => void loadPool()}>
+                    Refresh status
+                  </button>
+                  {explorerLink ? (
+                    <a className="button secondary" href={explorerLink} rel="noreferrer" target="_blank">
+                      View transaction
+                    </a>
+                  ) : null}
+                </>
+              }
+            >
+              <p>
+                {transactionMessage ??
+                  "Circle may need a moment to expose the transaction hash after wallet approval."}
+              </p>
+            </TxStatusPanel>
+          ) : null}
+          {flowStatus === "TRANSACTION_CONFIRMED" ? (
+            <Modal title="Pool state updated" status="TRANSACTION_CONFIRMED">
+              <p>The latest chain state has been refreshed. You can continue with the next pool action.</p>
+            </Modal>
+          ) : null}
         </>
       ) : null}
     </div>
@@ -389,14 +470,6 @@ function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-function formatState(state: string) {
-  return state
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function formatNullableBoolean(value: boolean | null) {
   if (value === null) {
     return "Unknown";
@@ -405,11 +478,22 @@ function formatNullableBoolean(value: boolean | null) {
   return value ? "Yes" : "No";
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
+function getActionGuidance(action: string, status: string) {
+  if (status === "completed") {
+    return "This pool is completed. Review the contribution and payout history below.";
+  }
+
+  if (action.toLowerCase().includes("approve")) {
+    return "Approve USDC first so the pool contract can collect your contribution.";
+  }
+
+  if (action.toLowerCase().includes("contribute")) {
+    return "Your allowance is ready. Submit this round's contribution through Circle.";
+  }
+
+  if (action.toLowerCase().includes("join")) {
+    return "Join the pool to enter the rotating payout order.";
+  }
+
+  return "No wallet action is needed from you right now. Refresh safely if the chain state just changed.";
 }

@@ -6,6 +6,7 @@ import { Link, Navigate } from "react-router-dom";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { AddressText, AdvancedDetails, InfoRow, Modal, StatusBadge } from "../components/UiKit";
 import {
   createMyWallet,
   createPinSetupChallenge,
@@ -157,57 +158,80 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="page narrow-page">
+    <div className="page">
       <div className="page-heading">
         <h1>Dashboard</h1>
-        <p>Wallet readiness and the first ArcLoop on-chain write path.</p>
+        <p>Manage your Circle wallet readiness and jump back into the ArcLoop pool flow.</p>
       </div>
 
       {isLoading ? <LoadingState message="Checking wallet state..." /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState title="Wallet action needs attention" message={error} /> : null}
 
       {walletInfo ? (
-        <Card>
-          <InfoRow label="User" value={activeSession.email ?? activeSession.userId ?? "Circle user"} />
-          <InfoRow label="Wallet state" value={formatState(walletInfo.wallet.status)} />
-          <InfoRow label="Wallet ID" value={walletInfo.wallet.walletId ?? "Not created"} />
-          <InfoRow label="Address" value={walletInfo.wallet.address ?? "Not created"} />
-          <InfoRow
-            label="Circle"
-            value={walletInfo.circle.configured ? "Configured" : "Not configured"}
-          />
-          <div className="button-row">
-            <button className="button secondary" disabled={isSubmitting} onClick={handleCreateWallet}>
-              Create or complete wallet
-            </button>
-            {pinSetupRequired ? (
-              <button className="button secondary" disabled={isSubmitting} onClick={handleSetupPin}>
-                Set up PIN
+        <div className="dashboard-grid">
+          <Card className="accent-card">
+            <div className="card-heading">
+              <h2>Wallet status</h2>
+              <StatusBadge status={walletInfo.wallet.status} />
+            </div>
+            <p>
+              {walletInfo.wallet.address
+                ? "Your Circle wallet is ready for ArcLoop pool transactions."
+                : "Complete the Circle wallet setup before creating or joining pools."}
+            </p>
+            <InfoRow label="Signed in as" value={activeSession.email ?? activeSession.userId ?? "Circle user"} />
+            <InfoRow
+              label="Wallet address"
+              value={walletInfo.wallet.address ? <AddressText value={walletInfo.wallet.address} /> : "Not created"}
+            />
+            <InfoRow label="Circle config" value={walletInfo.circle.configured ? "Configured" : "Not configured"} />
+            <div className="button-row">
+              <button className="button secondary" disabled={isSubmitting} onClick={handleCreateWallet}>
+                Create or complete wallet
               </button>
-            ) : null}
-            <Link className="button primary" to="/pools/new">
+              {pinSetupRequired ? (
+                <button className="button secondary" disabled={isSubmitting} onClick={handleSetupPin}>
+                  Set up PIN
+                </button>
+              ) : null}
+              <button className="button ghost" onClick={clearSession}>
+                Sign out
+              </button>
+            </div>
+            <AdvancedDetails summary="Wallet technical details">
+              <InfoRow label="Wallet ID" value={walletInfo.wallet.walletId ?? "Not created"} />
+              <InfoRow label="Wallet state" value={formatState(walletInfo.wallet.status)} />
+            </AdvancedDetails>
+          </Card>
+
+          <Card>
+            <h2>Quick actions</h2>
+            <p>Use these once your wallet is ready. Each pool action opens a Circle approval challenge.</p>
+            <Link className="button primary full-width" to="/pools/new">
               Create pool
             </Link>
-            <button className="button ghost" onClick={clearSession}>
-              Sign out
-            </button>
-          </div>
-          {walletChallenge?.wallet.challengeId || challengeStatus ? (
-            <div className="notice">
-              <strong>Wallet challenge</strong>
-              <span>{challengeStatus ?? "Waiting for Circle approval"}</span>
-            </div>
-          ) : null}
-          {pinSetupRequired || pinSetupStatus ? (
-            <div className="notice">
-              <strong>PIN setup</strong>
-              <span>
-                {pinSetupStatus ??
-                  "A Circle PIN is required before wallet creation. Use Set up PIN, then create the wallet again."}
-              </span>
-            </div>
-          ) : null}
-        </Card>
+            <Link className="button secondary full-width" to="/pools">
+              View pools
+            </Link>
+            <Link className="button secondary full-width" to="/contracts">
+              Contract details
+            </Link>
+          </Card>
+        </div>
+      ) : null}
+
+      {walletChallenge?.wallet.challengeId || challengeStatus ? (
+        <Modal title="Wallet challenge" status={challengeStatus ?? "WAITING_FOR_USER_APPROVAL"}>
+          <p>{challengeStatus ?? "Waiting for Circle approval in the secure wallet prompt."}</p>
+        </Modal>
+      ) : null}
+      {pinSetupRequired || pinSetupStatus ? (
+        <Modal title="PIN setup" status={pinSetupStatus ?? "PENDING"}>
+          <p>
+            {pinSetupStatus ??
+              "A Circle PIN is required before wallet creation. Set up the PIN, then create the wallet again."}
+          </p>
+        </Modal>
       ) : null}
     </div>
   );
@@ -219,13 +243,4 @@ function formatState(state: string) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="detail-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
 }

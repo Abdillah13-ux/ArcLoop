@@ -5,7 +5,7 @@ import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
-import { StatusPill } from "../components/StatusPill";
+import { CopyButton, formatUsdcAmount, InfoRow, StatusBadge } from "../components/UiKit";
 import { getPools } from "../lib/api-client";
 import type { Pool } from "../types/api";
 
@@ -43,7 +43,7 @@ export function PoolsPage() {
     <div className="page">
       <div className="page-heading">
         <h1>Pools</h1>
-        <p>Read-only pool metadata mirrored from Arc Testnet contract events and API records.</p>
+        <p>Browse active Arc Testnet rotating savings pools and open the one you want to join.</p>
         <Link className="button primary heading-action" to="/pools/new">
           Create pool
         </Link>
@@ -53,36 +53,35 @@ export function PoolsPage() {
       {error ? <ErrorState message={error} /> : null}
       {!isLoading && !error && pools.length === 0 ? (
         <EmptyState
-          title="No pools indexed yet"
-          message="Once the API has pool metadata or indexed events, pools will appear here."
+          title="No pools yet"
+          message="Create the first ArcLoop pool to start a transparent USDC savings round."
         />
       ) : null}
 
       <div className="pool-grid">
         {pools.map((pool) => (
-          <Link className="pool-card-link" to={`/pools/${pool.id}`} key={pool.id}>
+          <div className="pool-card-link" key={pool.id}>
             <Card>
               <div className="card-heading">
                 <h2>{pool.title}</h2>
-                <StatusPill status={pool.status} />
+                <StatusBadge status={pool.status} />
               </div>
-              <InfoRow label="Contribution" value={pool.contributionAmount} />
-              <InfoRow label="Max members" value={String(pool.maxMembers)} />
+              <p>{pool.description ?? "Fixed contribution pool mirrored from Arc Testnet."}</p>
+              <InfoRow label="Contribution" value={formatUsdcAmount(pool.contributionAmount)} />
+              <InfoRow label="Capacity" value={`${pool.maxMembers} members`} />
               <InfoRow label="Current round" value={String(pool.currentRound)} />
-              <InfoRow label="Invite" value={pool.inviteCode} />
+              <InfoRow
+                action={<CopyButton value={pool.inviteCode} />}
+                label="Invite"
+                value={pool.inviteCode}
+              />
+              <Link className="button secondary full-width" to={`/pools/${pool.id}`}>
+                Open pool
+              </Link>
             </Card>
-          </Link>
+          </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="info-row">
-      <span>{label}</span>
-      <strong>{value}</strong>
     </div>
   );
 }

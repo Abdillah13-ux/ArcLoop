@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { AdvancedDetails } from "../components/UiKit";
 import { createCircleSocialDeviceToken, getCircleLoginConfig } from "../lib/api-client";
 import { useCircleAuth } from "../lib/circle-auth";
 import { resolveCircleLoginRedirectUri } from "../lib/circle-redirect-uri";
@@ -293,32 +294,61 @@ export function LoginPage() {
   return (
     <div className="page narrow-page">
       <div className="page-heading">
-        <h1>Login</h1>
-        <p>Use Circle User-Controlled Wallets with Google to continue.</p>
+        <h1>USDC rotating savings pools on Arc.</h1>
+        <p>
+          Sign in with Google through Circle User-Controlled Wallets to create, join,
+          approve, and contribute to transparent testnet pools.
+        </p>
       </div>
 
       {isLoading ? <LoadingState message="Preparing Circle login..." /> : null}
-      {error ? <ErrorState message={error} /> : null}
+      {error ? <ErrorState title="Circle login needs attention" message={error} /> : null}
 
-      <div className="notice">
-        <strong>Status</strong>
-        <span>{status}</span>
-      </div>
-
-      <div className="notice">
-        <strong>Redirect URI</strong>
-        <span>{loginRedirectUri}</span>
-      </div>
-
-      <div className="notice">
-        <strong>SDK callback debug</strong>
-        <span>{sdkCallbackDebug}</span>
-      </div>
-
-      <Card>
-        <button className="button primary" disabled={!isReady} onClick={handleGoogleLogin}>
+      <Card className="accent-card">
+        <div className="card-heading">
+          <h2>Continue with Circle</h2>
+          <span className="status-pill">{status}</span>
+        </div>
+        <p>
+          Circle keeps wallet credentials user-controlled while ArcLoop coordinates the
+          on-chain pool actions. No browser wallet extension is required for this demo flow.
+        </p>
+        <button className="button primary full-width" disabled={!isReady} onClick={handleGoogleLogin}>
           Continue with Google
         </button>
+        <div className="proof-rail">
+          <div className="proof-step">
+            <span>01</span>
+            <div>
+              <strong>Google sign-in</strong>
+              <small>Authenticate through Circle without exposing raw wallet credentials.</small>
+            </div>
+          </div>
+          <div className="proof-step">
+            <span>02</span>
+            <div>
+              <strong>User-controlled wallet</strong>
+              <small>Approve create, join, USDC approval, and contribution challenges.</small>
+            </div>
+          </div>
+          <div className="proof-step">
+            <span>03</span>
+            <div>
+              <strong>Arc Testnet proof</strong>
+              <small>Track confirmed transactions and pool state from the dashboard.</small>
+            </div>
+          </div>
+        </div>
+        <AdvancedDetails>
+          <div className="notice">
+            <strong>Redirect URI</strong>
+            <span>{loginRedirectUri}</span>
+          </div>
+          <div className="notice">
+            <strong>SDK callback diagnostics</strong>
+            <span>{sdkCallbackDebug}</span>
+          </div>
+        </AdvancedDetails>
       </Card>
     </div>
   );
