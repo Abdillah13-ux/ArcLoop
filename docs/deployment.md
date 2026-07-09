@@ -7,7 +7,7 @@ ArcLoop is prepared for a production MVP deployment on Vercel without a VPS. Doc
 Use one Vercel project from the repository root:
 
 - `apps/web` builds the Vite React frontend.
-- Root `api/[...route].ts` exposes the Hono API as Vercel serverless functions under same-domain `/api/*`.
+- Root `api/handler.ts` exposes the Hono API as a Vercel serverless function under same-domain `/api/*`.
 - The frontend defaults to `/api` in production, so no production `VITE_API_BASE_URL` is needed for the one-project setup.
 
 This keeps browser requests same-origin, avoids production CORS work, and uses one environment-variable set for the MVP.
