@@ -20,6 +20,7 @@ import {
   approveAbiParameterCount,
   approveFunctionSignature,
   CircleSocialDeviceTokenError,
+  circleSocialDeviceTokenHardTimeoutMs,
   contributeAbiParameterCount,
   contributeFunctionSignature,
   createCircleContractExecutionTransaction,
@@ -114,6 +115,33 @@ function circleTransactionFailureStatus(status: number | null) {
   }
 
   return 502;
+}
+
+function createCircleSocialDeviceTokenTimeout() {
+  return new CircleSocialDeviceTokenError(
+    "Circle social device token request timed out.",
+    null,
+    "timeout"
+  );
+}
+
+function createHardTimeoutPromise() {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const promise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      console.info("[Circle social device token]", {
+        status: null,
+        category: "timeout"
+      });
+      reject(createCircleSocialDeviceTokenTimeout());
+    }, circleSocialDeviceTokenHardTimeoutMs);
+  });
+
+  return {
+    promise,
+    clear: () => clearTimeout(timeoutId)
+  };
 }
 
 function getBearerUserToken(c: { req: { header: (name: string) => string | undefined } }) {
@@ -281,8 +309,14 @@ walletsRoutes.post("/wallets/circle/social-device-token", async (c) => {
   }
 
   try {
+    const hardTimeout = createHardTimeoutPromise();
+    const data = await Promise.race([
+      createSocialLoginDeviceToken(parsed.data.deviceId),
+      hardTimeout.promise
+    ]).finally(hardTimeout.clear);
+
     return c.json({
-      data: await createSocialLoginDeviceToken(parsed.data.deviceId),
+      data,
       error: null
     });
   } catch (error) {

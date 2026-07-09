@@ -91,6 +91,7 @@ export type SafeCircleError = {
 const circleApiBaseUrl = "https://api.circle.com";
 const circleSocialDeviceTokenTimeoutMs = 10_000;
 const circleSocialDeviceTokenTimeoutMessage = "Circle social device token request timed out.";
+export const circleSocialDeviceTokenHardTimeoutMs = 10_500;
 
 export class CircleSocialDeviceTokenError extends Error {
   constructor(
@@ -169,7 +170,7 @@ async function readJsonResponse(response: Response) {
 
 function logCircleSocialDeviceTokenResult(details: {
   status: number | null;
-  category: "success" | CircleSocialDeviceTokenError["category"];
+  category: "start" | "response" | "success" | CircleSocialDeviceTokenError["category"];
 }) {
   console.info("[Circle social device token]", details);
 }
@@ -314,6 +315,11 @@ export async function createSocialLoginDeviceToken(
   let response: Response;
 
   try {
+    logCircleSocialDeviceTokenResult({
+      status: null,
+      category: "start"
+    });
+
     response = await fetch(`${circleApiBaseUrl}/v1/w3s/users/social/token`, {
       method: "POST",
       signal: controller.signal,
@@ -343,6 +349,11 @@ export async function createSocialLoginDeviceToken(
   } finally {
     clearTimeout(timeout);
   }
+
+  logCircleSocialDeviceTokenResult({
+    status: response.status,
+    category: "response"
+  });
 
   const payload = await readJsonResponse(response);
 
