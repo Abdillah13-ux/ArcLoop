@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "pnpm --filter @arcloop/db build && pnpm --filter @arcloop/web3 build && tsx watch src/server.ts",
     "build": "tsc --noEmit",
     "lint": "echo \"api lint not configured yet\"",
     "typecheck": "tsc --noEmit",

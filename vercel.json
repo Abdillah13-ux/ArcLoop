@@ -1,7 +1,7 @@
 {
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @arcloop/web build",
+  "buildCommand": "pnpm --filter @arcloop/db build && pnpm --filter @arcloop/web3 build && pnpm --filter @arcloop/api build && pnpm --filter @arcloop/web build",
   "outputDirectory": "apps/web/dist",
   "rewrites": [
     {

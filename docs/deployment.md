@@ -19,7 +19,7 @@ Use separate Vercel projects only if the API needs independent scaling, auth pol
 - Root Directory: repository root
 - Framework Preset: Vite
 - Install Command: `pnpm install --frozen-lockfile`
-- Build Command: `pnpm --filter @arcloop/web build`
+- Build Command: `pnpm --filter @arcloop/db build && pnpm --filter @arcloop/web3 build && pnpm --filter @arcloop/api build && pnpm --filter @arcloop/web build`
 - Output Directory: `apps/web/dist`
 
 The checked-in `vercel.json` records these settings and preserves client-side routing while leaving `/api/*` for serverless API routes.
