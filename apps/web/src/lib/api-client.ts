@@ -149,9 +149,10 @@ export function finalizePoolTransaction(input: FinalizePoolTransactionInput, use
     method: "POST",
     headers: {
       ...authHeaders(userToken),
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(input)
+      "x-arcloop-challenge-id": encodeURIComponent(input.challengeId),
+      "x-arcloop-title": encodeURIComponent(input.title),
+      "x-arcloop-description": encodeURIComponent(input.description ?? "")
+    }
   });
 }
 

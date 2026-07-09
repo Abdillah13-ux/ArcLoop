@@ -94,6 +94,7 @@ const circleSocialDeviceTokenTimeoutMessage = "Circle social device token reques
 export const circleSocialDeviceTokenHardTimeoutMs = 6_000;
 const circleTransactionCreateTimeoutMs = 5_000;
 const circleTransactionCreateTimeoutMessage = "Circle transaction creation request timed out.";
+const circleStatusRequestTimeoutMs = 5_000;
 
 export class CircleSocialDeviceTokenError extends Error {
   constructor(
@@ -222,6 +223,28 @@ function getFirstString(values: unknown) {
   return Array.isArray(values) && typeof values[0] === "string" ? values[0] : null;
 }
 
+function getCircleChallengeDetails(response: unknown) {
+  const challenge = (
+    response as
+      | {
+          challenge?: unknown;
+        }
+      | undefined
+  )?.challenge as
+    | {
+        status?: unknown;
+        type?: unknown;
+        correlationIds?: unknown;
+      }
+    | undefined;
+
+  return {
+    challengeStatus: typeof challenge?.status === "string" ? challenge.status : null,
+    challengeType: typeof challenge?.type === "string" ? challenge.type : null,
+    transactionId: getFirstString(challenge?.correlationIds)
+  };
+}
+
 function getTransactionHash(value: unknown) {
   return typeof value === "string" && /^0x[a-fA-F0-9]{64}$/.test(value) ? (value as Hex) : null;
 }
@@ -264,6 +287,18 @@ function getCircleTransactionDetails(response: unknown) {
     transactionState: typeof transaction?.state === "string" ? transaction.state : null,
     transactionHash: getTransactionHash(transaction?.txHash)
   };
+}
+
+async function withCircleStatusTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new CircleTransactionRequestError(message, null, "timeout"));
+    }, circleStatusRequestTimeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 }
 
 export function getSafeCircleError(error: unknown): SafeCircleError {
@@ -598,20 +633,31 @@ export async function finalizeCircleUserControlledTransaction(input: {
     };
   }
 
-  const challengeResponse = await client.getUserChallenge({
-    userToken: input.userToken,
-    challengeId: input.challengeId
-  });
-  const challenge = challengeResponse.data?.challenge as
-    | {
-        status?: unknown;
-        type?: unknown;
-        correlationIds?: unknown;
-      }
-    | undefined;
-  const challengeStatus = typeof challenge?.status === "string" ? challenge.status : null;
-  const challengeType = typeof challenge?.type === "string" ? challenge.type : null;
-  const transactionId = getFirstString(challenge?.correlationIds);
+  const deadline = Date.now() + (input.timeoutMs ?? 60_000);
+  const pollInterval = input.pollIntervalMs ?? 3_000;
+  let challengeStatus: string | null = null;
+  let challengeType: string | null = null;
+  let transactionId: string | null = null;
+
+  while (Date.now() <= deadline) {
+    const challengeResponse = await withCircleStatusTimeout(
+      client.getUserChallenge({
+        userToken: input.userToken,
+        challengeId: input.challengeId
+      }),
+      "Circle challenge status request timed out."
+    );
+    const details = getCircleChallengeDetails(challengeResponse.data);
+    challengeStatus = details.challengeStatus;
+    challengeType = details.challengeType;
+    transactionId = details.transactionId;
+
+    if (challengeStatus === "FAILED" || challengeStatus === "EXPIRED" || transactionId) {
+      break;
+    }
+
+    await delay(pollInterval);
+  }
 
   if (challengeStatus === "FAILED" || challengeStatus === "EXPIRED") {
     return {
@@ -633,11 +679,10 @@ export async function finalizeCircleUserControlledTransaction(input: {
       transactionHash: null,
       transactionState: null,
       status: "TRANSACTION_PENDING",
-      message: "Circle challenge completed, but the transaction is not available yet."
+      message: "Timed out waiting for Circle to create the transaction after challenge completion."
     };
   }
 
-  const deadline = Date.now() + (input.timeoutMs ?? 60_000);
   let latest = {
     transactionId,
     transactionState: null as string | null,
@@ -645,10 +690,13 @@ export async function finalizeCircleUserControlledTransaction(input: {
   };
 
   while (Date.now() <= deadline) {
-    const transactionResponse = await client.getTransaction({
-      userToken: input.userToken,
-      id: transactionId
-    });
+    const transactionResponse = await withCircleStatusTimeout(
+      client.getTransaction({
+        userToken: input.userToken,
+        id: transactionId
+      }),
+      "Circle transaction status request timed out."
+    );
     const details = getCircleTransactionDetails(transactionResponse.data);
     latest = {
       transactionId: details.transactionId ?? transactionId,
@@ -674,7 +722,7 @@ export async function finalizeCircleUserControlledTransaction(input: {
       };
     }
 
-    await delay(input.pollIntervalMs ?? 3_000);
+    await delay(pollInterval);
   }
 
   return {

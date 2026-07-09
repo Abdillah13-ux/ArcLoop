@@ -18,6 +18,36 @@ type PoolTransactionFlowStatus =
   | "TRANSACTION_FAILED"
   | "TRANSACTION_TIMEOUT";
 
+const poolFinalizationTimeoutMs = 75_000;
+
+class PoolFinalizationTimeoutError extends Error {
+  constructor() {
+    super("Timed out waiting for Circle transaction status.");
+    this.name = "PoolFinalizationTimeoutError";
+  }
+}
+
+function getObjectKeys(value: unknown) {
+  return value && typeof value === "object" ? Object.keys(value).sort() : [];
+}
+
+function getSdkTransactionHash(challengeResult: unknown) {
+  const transactionResult = challengeResult as SignTransactionResult | undefined;
+  return transactionResult?.data?.txHash ?? null;
+}
+
+async function withPoolFinalizationTimeout<T>(promise: Promise<T>) {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new PoolFinalizationTimeoutError());
+    }, poolFinalizationTimeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
 export function CreatePoolPage() {
   const { session } = useCircleAuth();
   const [title, setTitle] = useState("");
@@ -85,17 +115,18 @@ export function CreatePoolPage() {
 
       setFlowStatus("WAITING_FOR_USER_APPROVAL");
       const onComplete: ChallengeCompleteCallback = async (sdkError, challengeResult) => {
-        const transactionResult = challengeResult as SignTransactionResult | undefined;
+        const sdkTransactionHash = getSdkTransactionHash(challengeResult);
         console.info("[Circle transaction debug] createPool SDK callback", {
           challengeIdLength: challengeId.length,
           callbackFired: true,
           callbackStatus: challengeResult?.status ?? null,
-          hasTransactionId: false,
-          transactionIdLength: null,
-          hasTxHash: Boolean(transactionResult?.data?.txHash),
-          txHashLength: transactionResult?.data?.txHash?.length ?? null,
+          callbackType: challengeResult?.type ?? null,
+          resultKeys: getObjectKeys(challengeResult),
+          dataKeys: getObjectKeys((challengeResult as SignTransactionResult | undefined)?.data),
+          hasTxHash: Boolean(sdkTransactionHash),
+          txHashLength: sdkTransactionHash?.length ?? null,
           circleErrorCode: sdkError?.code ?? null,
-          circleErrorMessage: sdkError?.message ?? null
+          circleErrorMessagePresent: Boolean(sdkError?.message)
         });
 
         if (sdkError) {
@@ -105,7 +136,7 @@ export function CreatePoolPage() {
         }
 
         setChallengeStatus(challengeResult?.status ?? "UNKNOWN");
-        setExecutedTxHash(transactionResult?.data?.txHash ?? null);
+        setExecutedTxHash(sdkTransactionHash);
 
         if (challengeResult?.status !== "COMPLETE") {
           setFlowStatus("TRANSACTION_FAILED");
@@ -117,13 +148,15 @@ export function CreatePoolPage() {
         setIsFinalizing(true);
 
         try {
-          const finalized = await finalizePoolTransaction(
-            {
-              challengeId,
-              title: input.title,
-              description: input.description
-            },
-            activeSession.userToken
+          const finalized = await withPoolFinalizationTimeout(
+            finalizePoolTransaction(
+              {
+                challengeId,
+                title: input.title,
+                description: input.description
+              },
+              activeSession.userToken
+            )
           );
           setFinalizedResult(finalized);
 
@@ -137,7 +170,11 @@ export function CreatePoolPage() {
             setFlowStatus("TRANSACTION_TIMEOUT");
           }
         } catch (caughtError) {
-          setFlowStatus("TRANSACTION_FAILED");
+          setFlowStatus(
+            caughtError instanceof PoolFinalizationTimeoutError
+              ? "TRANSACTION_TIMEOUT"
+              : "TRANSACTION_FAILED"
+          );
           setError(
             caughtError instanceof Error
               ? caughtError.message

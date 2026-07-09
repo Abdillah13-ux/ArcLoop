@@ -329,6 +329,62 @@ async function readCreatePoolTransactionRequest(c: {
   return parsed.data;
 }
 
+async function readFinalizePoolTransactionRequest(c: {
+  req: {
+    header: (name: string) => string | undefined;
+    raw: Request;
+  };
+}) {
+  const headerInput = {
+    challengeId: decodeHeaderValue(c.req.header("x-arcloop-challenge-id")),
+    title: decodeHeaderValue(c.req.header("x-arcloop-title")),
+    description: decodeHeaderValue(c.req.header("x-arcloop-description")) || undefined
+  };
+
+  if (headerInput.challengeId || headerInput.title || headerInput.description) {
+    const parsed = finalizePoolTransactionSchema.safeParse(headerInput);
+
+    if (!parsed.success) {
+      throw new JsonRouteError(400, parsed.error.flatten());
+    }
+
+    return parsed.data;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    const parsed = finalizePoolTransactionSchema.safeParse(headerInput);
+
+    if (!parsed.success) {
+      throw new JsonRouteError(400, parsed.error.flatten());
+    }
+
+    return parsed.data;
+  }
+
+  let text: string;
+
+  try {
+    text = await c.req.raw.clone().text();
+  } catch {
+    throw new JsonRouteError(400, "Unable to read request body.");
+  }
+
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  const parsed = finalizePoolTransactionSchema.safeParse(json);
+
+  if (!parsed.success) {
+    throw new JsonRouteError(400, parsed.error.flatten());
+  }
+
+  return parsed.data;
+}
+
 function getBearerUserToken(c: { req: { header: (name: string) => string | undefined } }) {
   const header = c.req.header("authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
@@ -771,26 +827,21 @@ walletsRoutes.post("/wallets/me/pools/create-transaction", async (c) => {
 });
 
 walletsRoutes.post("/wallets/me/pools/finalize-transaction", async (c) => {
-  const json = await c.req.json().catch(() => null);
-  const parsed = finalizePoolTransactionSchema.safeParse(json);
   const userToken = getBearerUserToken(c);
-
-  if (!parsed.success) {
-    return c.json({ data: null, error: parsed.error.flatten() }, 400);
-  }
 
   if (!userToken) {
     return c.json({ data: null, error: "Circle user token is required." }, 401);
   }
 
   try {
+    const input = await readFinalizePoolTransactionRequest(c);
     const transaction = await finalizeCircleUserControlledTransaction({
       userToken,
-      challengeId: parsed.data.challengeId
+      challengeId: input.challengeId
     });
 
     console.info("[Circle transaction debug] createPool finalize", {
-      challengeIdLength: parsed.data.challengeId.length,
+      challengeIdLength: input.challengeId.length,
       callbackFired: true,
       callbackStatus: transaction.challengeStatus,
       hasTransactionId: Boolean(transaction.transactionId),
@@ -836,8 +887,8 @@ walletsRoutes.post("/wallets/me/pools/finalize-transaction", async (c) => {
         chainId: env.ARC_TESTNET_CHAIN_ID,
         contractAddress: rotatingSavingsPoolAddress,
         onchainPoolId: receipt.onchainPoolId,
-        title: parsed.data.title,
-        description: parsed.data.description,
+        title: input.title,
+        description: input.description,
         createdTxHash: transaction.transactionHash
       });
 
@@ -853,12 +904,18 @@ walletsRoutes.post("/wallets/me/pools/finalize-transaction", async (c) => {
       error: null
     });
   } catch (error) {
+    if (error instanceof JsonRouteError) {
+      return c.json({ data: null, error: error.error }, error.status);
+    }
+
+    if (error instanceof CircleTransactionRequestError && error.category === "timeout") {
+      return c.json({ data: null, error: error.message }, 504);
+    }
+
     const safeError = getSafeCircleError(error);
     console.warn("[Circle transaction debug] createPool finalize failed", {
-      challengeIdLength: parsed.data.challengeId.length,
-      callbackFired: true,
-      circleErrorCode: safeError.code,
-      circleErrorMessage: safeError.message
+      status: safeError.status,
+      category: "error"
     });
 
     return c.json(
