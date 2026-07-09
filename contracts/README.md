@@ -12,13 +12,13 @@ The contract does not hardcode USDC or any production token address. Each pool s
 
 1. A creator creates a pool with a token, fixed contribution amount, and member limit.
 2. Members explicitly join while the pool is `Created`.
-3. The creator starts the pool after exactly `maxMembers` have joined.
+3. The pool automatically becomes `Active` when exactly `maxMembers` have joined.
 4. Every member contributes once per active round.
-5. Anyone can release the funded round payout to the current recipient.
+5. The funded round payout is released automatically to the current recipient when the final member contributes for that round.
 6. The recipient order follows join order.
 7. The pool is `Completed` after every member has received one payout.
 
-Created pools can be cancelled before start. There is no refund path in the MVP because contributions are only accepted after start.
+Created pools can be cancelled before they fill and auto-start. There is no refund path in the MVP because contributions are only accepted after start.
 
 ## Test
 

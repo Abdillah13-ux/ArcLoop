@@ -1,4 +1,6 @@
-CREATE TABLE "pools" (
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "pools" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chain_id" integer NOT NULL,
 	"contract_address" text NOT NULL,
@@ -22,7 +24,7 @@ CREATE TABLE "pools" (
 	CONSTRAINT "pools_invite_code_unique" UNIQUE("invite_code")
 );
 --> statement-breakpoint
-CREATE TABLE "pool_members" (
+CREATE TABLE IF NOT EXISTS "pool_members" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"pool_id" uuid NOT NULL,
 	"chain_id" integer NOT NULL,
@@ -35,7 +37,7 @@ CREATE TABLE "pool_members" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "pool_rounds" (
+CREATE TABLE IF NOT EXISTS "pool_rounds" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"pool_id" uuid NOT NULL,
 	"onchain_pool_id" integer NOT NULL,
@@ -50,7 +52,7 @@ CREATE TABLE "pool_rounds" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "round_contributions" (
+CREATE TABLE IF NOT EXISTS "round_contributions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"pool_id" uuid NOT NULL,
 	"round_id" uuid,
@@ -64,7 +66,7 @@ CREATE TABLE "round_contributions" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "payouts" (
+CREATE TABLE IF NOT EXISTS "payouts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"pool_id" uuid NOT NULL,
 	"onchain_pool_id" integer NOT NULL,
@@ -77,7 +79,7 @@ CREATE TABLE "payouts" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "indexed_events" (
+CREATE TABLE IF NOT EXISTS "indexed_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chain_id" integer NOT NULL,
 	"contract_address" text NOT NULL,
@@ -89,7 +91,7 @@ CREATE TABLE "indexed_events" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "indexer_state" (
+CREATE TABLE IF NOT EXISTS "indexer_state" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"chain_id" integer NOT NULL,
 	"contract_address" text NOT NULL,
@@ -97,18 +99,43 @@ CREATE TABLE "indexer_state" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "pool_members" ADD CONSTRAINT "pool_members_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "pool_rounds" ADD CONSTRAINT "pool_rounds_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "round_contributions" ADD CONSTRAINT "round_contributions_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "round_contributions" ADD CONSTRAINT "round_contributions_round_id_pool_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."pool_rounds"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payouts" ADD CONSTRAINT "payouts_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "pools_chain_contract_onchain_pool_id_unique" ON "pools" USING btree ("chain_id","contract_address","onchain_pool_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "pool_members_chain_contract_pool_member_unique" ON "pool_members" USING btree ("chain_id","contract_address","onchain_pool_id","member_address");--> statement-breakpoint
-CREATE UNIQUE INDEX "pool_members_chain_contract_pool_index_unique" ON "pool_members" USING btree ("chain_id","contract_address","onchain_pool_id","member_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "pool_rounds_pool_round_index_unique" ON "pool_rounds" USING btree ("pool_id","round_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "round_contributions_tx_log_unique" ON "round_contributions" USING btree ("tx_hash","log_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "round_contributions_pool_round_member_unique" ON "round_contributions" USING btree ("pool_id","round_index","member_address");--> statement-breakpoint
-CREATE UNIQUE INDEX "payouts_tx_log_unique" ON "payouts" USING btree ("tx_hash","log_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "payouts_pool_round_unique" ON "payouts" USING btree ("pool_id","round_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "indexed_events_chain_contract_tx_log_unique" ON "indexed_events" USING btree ("chain_id","contract_address","tx_hash","log_index");--> statement-breakpoint
-CREATE UNIQUE INDEX "indexer_state_chain_contract_unique" ON "indexer_state" USING btree ("chain_id","contract_address");
+DO $$ BEGIN
+ ALTER TABLE "pool_members" ADD CONSTRAINT "pool_members_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "pool_rounds" ADD CONSTRAINT "pool_rounds_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "round_contributions" ADD CONSTRAINT "round_contributions_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "round_contributions" ADD CONSTRAINT "round_contributions_round_id_pool_rounds_id_fk" FOREIGN KEY ("round_id") REFERENCES "public"."pool_rounds"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "payouts" ADD CONSTRAINT "payouts_pool_id_pools_id_fk" FOREIGN KEY ("pool_id") REFERENCES "public"."pools"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN NULL;
+END $$;
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pools_chain_contract_onchain_pool_id_unique" ON "pools" USING btree ("chain_id","contract_address","onchain_pool_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pool_members_chain_contract_pool_member_unique" ON "pool_members" USING btree ("chain_id","contract_address","onchain_pool_id","member_address");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pool_members_chain_contract_pool_index_unique" ON "pool_members" USING btree ("chain_id","contract_address","onchain_pool_id","member_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "pool_rounds_pool_round_index_unique" ON "pool_rounds" USING btree ("pool_id","round_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "round_contributions_tx_log_unique" ON "round_contributions" USING btree ("tx_hash","log_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "round_contributions_pool_round_member_unique" ON "round_contributions" USING btree ("pool_id","round_index","member_address");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "payouts_tx_log_unique" ON "payouts" USING btree ("tx_hash","log_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "payouts_pool_round_unique" ON "payouts" USING btree ("pool_id","round_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "indexed_events_chain_contract_tx_log_unique" ON "indexed_events" USING btree ("chain_id","contract_address","tx_hash","log_index");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "indexer_state_chain_contract_unique" ON "indexer_state" USING btree ("chain_id","contract_address");

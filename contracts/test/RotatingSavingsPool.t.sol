@@ -94,16 +94,25 @@ contract RotatingSavingsPoolTest is Test {
         _join(poolId, memberTwo);
 
         vm.prank(memberThree);
-        vm.expectRevert(RotatingSavingsPool.PoolFull.selector);
+        vm.expectRevert(RotatingSavingsPool.PoolNotCreated.selector);
         savingsPool.joinPool(poolId);
     }
 
-    function testStartPoolOnlyCreator() public {
-        uint256 poolId = _createStartedPool(3);
+    function testJoinPoolAutoStartsAfterLastMemberJoins() public {
+        uint256 poolId = _createPool(3);
+        _join(poolId, memberOne);
+        _join(poolId, memberTwo);
 
-        vm.prank(outsider);
-        vm.expectRevert(RotatingSavingsPool.NotCreator.selector);
-        savingsPool.startPool(poolId);
+        vm.expectEmit(true, false, false, true);
+        emit RotatingSavingsPool.PoolStarted(poolId);
+        _join(poolId, memberThree);
+
+        (,,,, uint256 currentRound, RotatingSavingsPool.PoolStatus status, uint256 memberCount) =
+            savingsPool.getPool(poolId);
+        assertEq(currentRound, 0);
+        assertEq(uint256(status), uint256(RotatingSavingsPool.PoolStatus.Active));
+        assertEq(memberCount, 3);
+        assertEq(savingsPool.getCurrentRecipient(poolId), memberOne);
     }
 
     function testStartPoolRequiresFullMembers() public {
@@ -113,6 +122,14 @@ contract RotatingSavingsPoolTest is Test {
 
         vm.prank(creator);
         vm.expectRevert(RotatingSavingsPool.NotEnoughMembers.selector);
+        savingsPool.startPool(poolId);
+    }
+
+    function testStartPoolRejectsAlreadyAutoStartedPool() public {
+        uint256 poolId = _createStartedPool(3);
+
+        vm.prank(creator);
+        vm.expectRevert(RotatingSavingsPool.PoolNotCreated.selector);
         savingsPool.startPool(poolId);
     }
 
@@ -156,43 +173,56 @@ contract RotatingSavingsPoolTest is Test {
         savingsPool.releasePayout(poolId);
     }
 
-    function testReleasePayoutPaysCorrectRecipient() public {
+    function testFinalContributionAutoPaysCorrectRecipient() public {
         uint256 poolId = _createStartedPool(3);
-        _fundRound(poolId);
+        _contribute(poolId, memberOne);
+        _contribute(poolId, memberTwo);
 
         uint256 balanceBefore = token.balanceOf(memberOne);
-        savingsPool.releasePayout(poolId);
+        _approve(poolId, memberThree);
+        vm.expectEmit(true, true, true, true);
+        emit RotatingSavingsPool.PayoutReleased(poolId, 0, memberOne, CONTRIBUTION_AMOUNT * 3);
+        vm.prank(memberThree);
+        savingsPool.contribute(poolId);
 
         assertEq(token.balanceOf(memberOne), balanceBefore + (CONTRIBUTION_AMOUNT * 3));
         assertTrue(savingsPool.roundPaidOut(poolId, 0));
     }
 
-    function testReleasePayoutAdvancesRound() public {
+    function testFinalContributionAdvancesRoundAndRotatesRecipient() public {
         uint256 poolId = _createStartedPool(3);
         _fundRound(poolId);
-
-        savingsPool.releasePayout(poolId);
 
         (,,,, uint256 currentRound,,) = savingsPool.getPool(poolId);
         assertEq(currentRound, 1);
         assertEq(savingsPool.getCurrentRecipient(poolId), memberTwo);
     }
 
-    function testFinalReleaseMarksPoolCompleted() public {
+    function testFinalRoundAutoPayoutMarksPoolCompleted() public {
         uint256 poolId = _createStartedPool(3);
 
         _fundRound(poolId);
-        savingsPool.releasePayout(poolId);
-
         _fundRound(poolId);
-        savingsPool.releasePayout(poolId);
 
-        _fundRound(poolId);
-        savingsPool.releasePayout(poolId);
+        _contribute(poolId, memberOne);
+        _contribute(poolId, memberTwo);
+        _approve(poolId, memberThree);
+        vm.expectEmit(true, false, false, true);
+        emit RotatingSavingsPool.PoolCompleted(poolId);
+        vm.prank(memberThree);
+        savingsPool.contribute(poolId);
 
         (,,,, uint256 currentRound, RotatingSavingsPool.PoolStatus status,) = savingsPool.getPool(poolId);
         assertEq(currentRound, 3);
         assertEq(uint256(status), uint256(RotatingSavingsPool.PoolStatus.Completed));
+    }
+
+    function testReleasePayoutRejectsAfterAutomaticPayout() public {
+        uint256 poolId = _createStartedPool(3);
+        _fundRound(poolId);
+
+        vm.expectRevert(RotatingSavingsPool.RoundNotFullyFunded.selector);
+        savingsPool.releasePayout(poolId);
     }
 
     function testCancelPoolOnlyBeforeStart() public {
@@ -236,9 +266,6 @@ contract RotatingSavingsPoolTest is Test {
         if (maxMembers > 2) {
             _join(poolId, memberThree);
         }
-
-        vm.prank(creator);
-        savingsPool.startPool(poolId);
     }
 
     function _join(uint256 poolId, address member) internal {

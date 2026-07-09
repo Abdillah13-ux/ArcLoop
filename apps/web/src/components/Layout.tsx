@@ -10,6 +10,8 @@ export function Layout() {
         </NavLink>
         <nav className="site-nav" aria-label="Primary navigation">
           <NavLink to="/pools">Pools</NavLink>
+          <NavLink to="/pools/new">Create</NavLink>
+          <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/contracts">Contract</NavLink>
           <NavLink to="/mobile">Mobile</NavLink>
         </nav>

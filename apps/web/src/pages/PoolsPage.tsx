@@ -44,6 +44,9 @@ export function PoolsPage() {
       <div className="page-heading">
         <h1>Pools</h1>
         <p>Read-only pool metadata mirrored from Arc Testnet contract events and API records.</p>
+        <Link className="button primary heading-action" to="/pools/new">
+          Create pool
+        </Link>
       </div>
 
       {isLoading ? <LoadingState message="Loading pools..." /> : null}

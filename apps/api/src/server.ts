@@ -5,10 +5,12 @@ import { cors } from "hono/cors";
 import { env } from "./config/env";
 import { chainsRoutes } from "./routes/chains";
 import { contractsRoutes } from "./routes/contracts";
+import { devRoutes } from "./routes/dev";
 import { healthRoutes } from "./routes/health";
 import { indexerRoutes } from "./routes/indexer";
 import { invitesRoutes } from "./routes/invites";
 import { poolsRoutes } from "./routes/pools";
+import { walletsRoutes } from "./routes/wallets";
 
 const app = new Hono();
 
@@ -28,6 +30,8 @@ app.route("/", contractsRoutes);
 app.route("/", poolsRoutes);
 app.route("/", invitesRoutes);
 app.route("/", indexerRoutes);
+app.route("/", walletsRoutes);
+app.route("/", devRoutes);
 
 serve(
   {

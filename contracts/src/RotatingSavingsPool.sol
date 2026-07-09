@@ -94,6 +94,13 @@ contract RotatingSavingsPool is ReentrancyGuard {
         pool.members.push(msg.sender);
 
         emit MemberJoined(poolId, msg.sender, pool.members.length - 1);
+
+        if (pool.members.length == pool.maxMembers) {
+            pool.status = PoolStatus.Active;
+            pool.currentRound = 0;
+
+            emit PoolStarted(poolId);
+        }
     }
 
     function startPool(uint256 poolId) external {
@@ -124,30 +131,15 @@ contract RotatingSavingsPool is ReentrancyGuard {
         IERC20(pool.token).safeTransferFrom(msg.sender, address(this), amount);
 
         emit ContributionMade(poolId, round, msg.sender, amount);
+
+        if (roundContributionCount[poolId][round] == pool.maxMembers) {
+            _releasePayout(poolId, pool);
+        }
     }
 
     function releasePayout(uint256 poolId) external nonReentrant {
         Pool storage pool = _getExistingPool(poolId);
-        if (pool.status != PoolStatus.Active) revert PoolNotActive();
-        if (pool.currentRound >= pool.maxMembers) revert PoolAlreadyFinished();
-
-        uint256 round = pool.currentRound;
-        if (roundContributionCount[poolId][round] != pool.maxMembers) revert RoundNotFullyFunded();
-        if (roundPaidOut[poolId][round]) revert PayoutAlreadyReleased();
-
-        address recipient = pool.members[round];
-        uint256 amount = pool.contributionAmount * pool.maxMembers;
-
-        roundPaidOut[poolId][round] = true;
-        IERC20(pool.token).safeTransfer(recipient, amount);
-
-        emit PayoutReleased(poolId, round, recipient, amount);
-
-        pool.currentRound++;
-        if (pool.currentRound == pool.maxMembers) {
-            pool.status = PoolStatus.Completed;
-            emit PoolCompleted(poolId);
-        }
+        _releasePayout(poolId, pool);
     }
 
     function cancelPool(uint256 poolId) external {
@@ -204,6 +196,29 @@ contract RotatingSavingsPool is ReentrancyGuard {
 
     function getPoolCount() external view returns (uint256) {
         return nextPoolId;
+    }
+
+    function _releasePayout(uint256 poolId, Pool storage pool) private {
+        if (pool.status != PoolStatus.Active) revert PoolNotActive();
+        if (pool.currentRound >= pool.maxMembers) revert PoolAlreadyFinished();
+
+        uint256 round = pool.currentRound;
+        if (roundContributionCount[poolId][round] != pool.maxMembers) revert RoundNotFullyFunded();
+        if (roundPaidOut[poolId][round]) revert PayoutAlreadyReleased();
+
+        address recipient = pool.members[round];
+        uint256 amount = pool.contributionAmount * pool.maxMembers;
+
+        roundPaidOut[poolId][round] = true;
+        IERC20(pool.token).safeTransfer(recipient, amount);
+
+        emit PayoutReleased(poolId, round, recipient, amount);
+
+        pool.currentRound++;
+        if (pool.currentRound == pool.maxMembers) {
+            pool.status = PoolStatus.Completed;
+            emit PoolCompleted(poolId);
+        }
     }
 
     function _getExistingPool(uint256 poolId) private view returns (Pool storage pool) {

@@ -75,6 +75,45 @@ export const rotatingSavingsPoolAbi = [
   },
   {
     type: "function",
+    name: "createPool",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "contributionAmount", type: "uint256" },
+      { name: "maxMembers", type: "uint256" }
+    ],
+    outputs: [{ name: "poolId", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "joinPool",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "poolId", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "startPool",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "poolId", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "contribute",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "poolId", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "releasePayout",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "poolId", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
     name: "getMembers",
     stateMutability: "view",
     inputs: [{ name: "poolId", type: "uint256" }],
@@ -100,6 +139,47 @@ export const rotatingSavingsPoolAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "count", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "isMember",
+    stateMutability: "view",
+    inputs: [
+      { name: "poolId", type: "uint256" },
+      { name: "member", type: "address" }
+    ],
+    outputs: [{ name: "joined", type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "hasContributed",
+    stateMutability: "view",
+    inputs: [
+      { name: "poolId", type: "uint256" },
+      { name: "round", type: "uint256" },
+      { name: "member", type: "address" }
+    ],
+    outputs: [{ name: "contributed", type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "roundContributionCount",
+    stateMutability: "view",
+    inputs: [
+      { name: "poolId", type: "uint256" },
+      { name: "round", type: "uint256" }
+    ],
+    outputs: [{ name: "count", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "roundPaidOut",
+    stateMutability: "view",
+    inputs: [
+      { name: "poolId", type: "uint256" },
+      { name: "round", type: "uint256" }
+    ],
+    outputs: [{ name: "paid", type: "bool" }]
   }
 ] as const;
 

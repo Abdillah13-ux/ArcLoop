@@ -363,6 +363,10 @@ button {
   justify-self: start;
 }
 
+.heading-action {
+  justify-self: start;
+}
+
 .pool-card-link {
   display: block;
 }
@@ -467,6 +471,20 @@ button {
   color: #ffc1c8;
 }
 
+.warning-state {
+  background:
+    linear-gradient(180deg, rgba(247, 201, 111, 0.12), rgba(247, 201, 111, 0.04)),
+    rgba(28, 22, 12, 0.72);
+  border-color: rgba(247, 201, 111, 0.34);
+  justify-items: start;
+  text-align: left;
+}
+
+.warning-state h2,
+.warning-state p {
+  color: #ffe3a1;
+}
+
 .loader {
   width: 26px;
   height: 26px;
@@ -527,6 +545,81 @@ button {
   gap: 1rem;
 }
 
+.form-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field span {
+  color: var(--soft);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field textarea {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  min-height: 46px;
+  outline: none;
+  padding: 0.82rem 0.9rem;
+  width: 100%;
+}
+
+.field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: rgba(60, 230, 198, 0.52);
+  box-shadow: 0 0 0 3px rgba(60, 230, 198, 0.1);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.notice {
+  display: grid;
+  gap: 0.3rem;
+  background: rgba(60, 230, 198, 0.08);
+  border: 1px solid rgba(60, 230, 198, 0.22);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.notice strong {
+  color: var(--text);
+}
+
+.notice span {
+  color: var(--muted);
+}
+
+.result-card {
+  margin-top: 1rem;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -561,7 +654,8 @@ button {
   }
 
   .section-grid,
-  .pool-grid {
+  .pool-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 }
