@@ -144,6 +144,64 @@ function createHardTimeoutPromise() {
   };
 }
 
+class JsonRouteError extends Error {
+  constructor(
+    readonly status: 400,
+    readonly error: unknown
+  ) {
+    super("JSON route error");
+    this.name = "JsonRouteError";
+  }
+}
+
+async function readSocialDeviceTokenRequest(c: {
+  req: {
+    raw: Request;
+  };
+}) {
+  console.info("[Circle social device token]", {
+    status: null,
+    category: "body_read_start"
+  });
+
+  let text: string;
+  try {
+    text = await c.req.raw.clone().text();
+  } catch {
+    throw new JsonRouteError(400, "Unable to read request body.");
+  }
+
+  let json: unknown = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  const parsed = socialDeviceTokenSchema.safeParse(json);
+
+  if (!parsed.success) {
+    throw new JsonRouteError(400, parsed.error.flatten());
+  }
+
+  return parsed.data;
+}
+
+async function runSocialDeviceTokenRoute(c: {
+  req: {
+    raw: Request;
+  };
+}) {
+  const input = await readSocialDeviceTokenRequest(c);
+
+  console.info("[Circle social device token]", {
+    status: null,
+    category: "route_start"
+  });
+
+  return createSocialLoginDeviceToken(input.deviceId);
+}
+
 function getBearerUserToken(c: { req: { header: (name: string) => string | undefined } }) {
   const header = c.req.header("authorization") ?? "";
   const match = /^Bearer\s+(.+)$/i.exec(header);
@@ -301,21 +359,15 @@ walletsRoutes.get("/wallets/circle/config", (c) =>
 );
 
 walletsRoutes.post("/wallets/circle/social-device-token", async (c) => {
-  const json = await c.req.json().catch(() => null);
-  const parsed = socialDeviceTokenSchema.safeParse(json);
+  console.info("[Circle social device token]", {
+    status: null,
+    category: "handler_entry"
+  });
 
-  if (!parsed.success) {
-    return c.json({ data: null, error: parsed.error.flatten() }, 400);
-  }
-
+  const hardTimeout = createHardTimeoutPromise();
   try {
-    const hardTimeout = createHardTimeoutPromise();
-    console.info("[Circle social device token]", {
-      status: null,
-      category: "route_start"
-    });
     const data = await Promise.race([
-      createSocialLoginDeviceToken(parsed.data.deviceId),
+      runSocialDeviceTokenRoute(c),
       hardTimeout.promise
     ]).finally(hardTimeout.clear);
 
@@ -324,6 +376,16 @@ walletsRoutes.post("/wallets/circle/social-device-token", async (c) => {
       error: null
     });
   } catch (error) {
+    if (error instanceof JsonRouteError) {
+      return c.json(
+        {
+          data: null,
+          error: error.error
+        },
+        error.status
+      );
+    }
+
     if (error instanceof CircleSocialDeviceTokenError) {
       return c.json(
         {
