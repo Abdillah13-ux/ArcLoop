@@ -52,6 +52,10 @@ function toJsonValue(value: unknown): unknown {
   return value;
 }
 
+function getDecodedEventArgs(args: unknown): Record<string, unknown> {
+  return args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
+}
+
 async function findPool(chainId: number, contractAddress: string, onchainPoolId: number) {
   const db = getDb();
   const rows = await db
@@ -339,8 +343,8 @@ export async function runRotatingSavingsPoolIndexerOnce(options: RunIndexerOnceO
       topics: log.topics
     });
 
-    const eventName = decoded.eventName;
-    const args = decoded.args as Record<string, unknown>;
+    const eventName = String(decoded.eventName);
+    const args = getDecodedEventArgs(decoded.args);
     const blockNumber = Number(log.blockNumber);
     const logIndex = Number(log.logIndex);
 

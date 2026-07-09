@@ -110,6 +110,20 @@ type PoolReceiptEvent = {
   logIndex: number;
 };
 
+function isPoolReceiptEventName(eventName: string): eventName is PoolReceiptEventName {
+  return (
+    eventName === "MemberJoined" ||
+    eventName === "PoolStarted" ||
+    eventName === "ContributionMade" ||
+    eventName === "PayoutReleased" ||
+    eventName === "PoolCompleted"
+  );
+}
+
+function getDecodedEventArgs(args: unknown): Record<string, unknown> {
+  return args && typeof args === "object" && !Array.isArray(args) ? args as Record<string, unknown> : {};
+}
+
 function circleTransactionFailureStatus(status: number | null) {
   if (status === 400 || status === 401 || status === 403 || status === 404 || status === 409) {
     return status;
@@ -414,9 +428,10 @@ async function getCreatedPoolIdFromReceipt(transactionHash: Hex) {
       });
 
       if (decoded.eventName === "PoolCreated") {
-        const args = decoded.args as { poolId?: bigint };
+        const args = getDecodedEventArgs(decoded.args);
+        const poolId = args.poolId;
         return {
-          onchainPoolId: typeof args.poolId === "bigint" ? Number(args.poolId) : null,
+          onchainPoolId: typeof poolId === "bigint" ? Number(poolId) : null,
           blockNumber: Number(receipt.blockNumber),
           confirmed: true
         };
@@ -456,16 +471,10 @@ async function getPoolEventsFromReceipt(transactionHash: Hex) {
         topics: log.topics
       });
 
-      if (
-        decoded.eventName === "MemberJoined" ||
-        decoded.eventName === "PoolStarted" ||
-        decoded.eventName === "ContributionMade" ||
-        decoded.eventName === "PayoutReleased" ||
-        decoded.eventName === "PoolCompleted"
-      ) {
+      if (isPoolReceiptEventName(decoded.eventName)) {
         events.push({
           eventName: decoded.eventName,
-          eventArgs: decoded.args as Record<string, unknown>,
+          eventArgs: getDecodedEventArgs(decoded.args),
           blockNumber: Number(receipt.blockNumber),
           logIndex: log.logIndex
         });

@@ -108,6 +108,7 @@ devRoutes.post("/dev/pools/create-transaction", async (c) => {
     const txHash = await walletClient.writeContract({
       address: rotatingSavingsPoolAddress,
       abi: rotatingSavingsPoolAbi,
+      chain: arcTestnet,
       functionName: "createPool",
       args: [env.USDC_TOKEN_ADDRESS as Address, contributionAmount, BigInt(parsed.data.maxMembers)]
     });
