@@ -26,7 +26,7 @@ import {
   getCircleLoginConfig,
   getPoolById
 } from "../lib/api-client";
-import { useCircleAuth } from "../lib/circle-auth";
+import { readCircleAuthSession, useCircleAuth } from "../lib/circle-auth";
 import type { PoolAction, PoolActionTransactionResult, PoolDetail } from "../types/api";
 
 type FlowStatus =
@@ -60,18 +60,21 @@ export function PoolDetailPage() {
     if (!id) {
       setError("Pool id is missing.");
       setIsLoading(false);
-      return;
+      return null;
     }
 
     if (!silent) {
       setIsLoading(true);
     }
     try {
-      const item = await getPoolById(id, session?.userToken);
+      const latestUserToken = readCircleAuthSession()?.userToken ?? session?.userToken;
+      const item = await getPoolById(id, latestUserToken);
       setDetail(item);
       setError(null);
+      return item;
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unable to load pool.");
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -98,16 +101,26 @@ export function PoolDetailPage() {
       await new Promise((resolve) => window.setTimeout(resolve, poolStatePollIntervalMs));
       let latest: PoolDetail;
       try {
-        latest = await getPoolById(id!, userToken);
+        const latestUserToken = readCircleAuthSession()?.userToken ?? userToken;
+        latest = await getPoolById(id!, latestUserToken);
       } catch {
         continue;
       }
 
       setDetail(latest);
 
+      if (pollAttempt === 3) {
+        const strongerLatest = await loadPool(true);
+        if (strongerLatest) {
+          latest = strongerLatest;
+        }
+      }
+
       console.info("[Circle transaction debug] pool state poll", {
         action,
         pollAttempt,
+        requestHasUserToken: Boolean(readCircleAuthSession()?.userToken ?? userToken),
+        requestHasViewerWallet: latest.chainState.viewer.walletAddressPresent,
         baselineMembersJoinedNumeric: before.chainState.membersJoined,
         baselineContributionProgressNumeric: before.chainState.contributionProgress,
         baselineRound: before.pool.currentRound,
@@ -281,7 +294,8 @@ export function PoolDetailPage() {
     }
 
     try {
-      const latest = await getPoolById(id, session.userToken);
+      const latestUserToken = readCircleAuthSession()?.userToken ?? session.userToken;
+      const latest = await getPoolById(id, latestUserToken);
       setDetail(latest);
       if (activeAction && transactionStartDetail && hasExpectedPoolStateChanged(activeAction, transactionStartDetail, latest)) {
         setFlowStatus("TRANSACTION_CONFIRMED");

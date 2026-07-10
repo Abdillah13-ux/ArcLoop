@@ -93,7 +93,8 @@ export function getPools() {
 }
 
 export function getPoolById(id: string, userToken?: string) {
-  return request<PoolDetail>(`/pools/${encodeURIComponent(id)}`, {
+  return request<PoolDetail>(`/pools/${encodeURIComponent(id)}?state=${Date.now()}`, {
+    cache: "no-store",
     headers: userToken ? authHeaders(userToken) : undefined
   });
 }
