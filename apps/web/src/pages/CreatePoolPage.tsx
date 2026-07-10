@@ -446,16 +446,18 @@ export function CreatePoolPage() {
     finalizedResult?.transaction.transactionHash ?? executedTxHash ?? result?.transaction.transactionHash;
   const transactionId =
     finalizedResult?.transaction.transactionId ?? result?.transaction.transactionId ?? "Not submitted";
-  const transactionMessage =
-    finalizedResult?.transaction.message ??
-    (isFinalizing
-      ? "Wallet approval is complete. ArcLoop is waiting for Circle to expose the submitted transaction."
-      : result?.transaction.message);
   const displayStatus =
     flowStatus ??
     finalizedResult?.transaction.status ??
     challengeStatus ??
     result?.transaction.status;
+  const transactionMessage =
+    finalizedResult?.transaction.message ??
+    (displayStatus === "CHALLENGE_COMPLETE"
+      ? "Wallet confirmation complete. Waiting for Arc Testnet confirmation..."
+      : isFinalizing
+      ? "Wallet approval is complete. ArcLoop is waiting for Circle to expose the submitted transaction."
+      : result?.transaction.message);
   const explorerLink =
     transactionHash && result
       ? `${result.request.explorerUrl.replace(/\/$/, "")}/tx/${transactionHash}`
@@ -616,7 +618,7 @@ export function CreatePoolPage() {
 
       {displayStatus === "TRANSACTION_CONFIRMED" ? (
         <Modal title="Pool created" status="TRANSACTION_CONFIRMED">
-          <p>Your pool transaction is confirmed. Refresh the pool list if the new pool is still syncing.</p>
+          <p>Your pool transaction is confirmed and the pool is ready in your pools list.</p>
         </Modal>
       ) : null}
     </div>

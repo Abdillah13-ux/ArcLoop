@@ -8,6 +8,7 @@ import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import {
   AddressText,
+  AdvancedDetails,
   ExplorerLink,
   formatStateLabel,
   formatUsdcAmount,
@@ -38,6 +39,9 @@ type FlowStatus =
   | "TRANSACTION_FAILED"
   | "TRANSACTION_TIMEOUT";
 
+const poolStatePollIntervalMs = 2_500;
+const poolStatePollTimeoutMs = 75_000;
+
 export function PoolDetailPage() {
   const { id } = useParams();
   const { session } = useCircleAuth();
@@ -49,15 +53,19 @@ export function PoolDetailPage() {
   const [activeAction, setActiveAction] = useState<PoolAction | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [transactionMessage, setTransactionMessage] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [transactionStartDetail, setTransactionStartDetail] = useState<PoolDetail | null>(null);
 
-  const loadPool = useCallback(async () => {
+  const loadPool = useCallback(async (silent = false) => {
     if (!id) {
       setError("Pool id is missing.");
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    if (!silent) {
+      setIsLoading(true);
+    }
     try {
       const item = await getPoolById(id, session?.userToken);
       setDetail(item);
@@ -73,6 +81,30 @@ export function PoolDetailPage() {
     void loadPool();
   }, [loadPool]);
 
+  async function waitForPoolState(action: PoolAction, before: PoolDetail, userToken: string) {
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < poolStatePollTimeoutMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, poolStatePollIntervalMs));
+      let latest: PoolDetail;
+      try {
+        latest = await getPoolById(id!, userToken);
+      } catch {
+        continue;
+      }
+
+      setDetail(latest);
+
+      const stateChanged = hasExpectedPoolStateChanged(action, before, latest);
+
+      if (stateChanged) {
+        return latest;
+      }
+    }
+
+    return null;
+  }
+
   async function executePoolAction(action: PoolAction) {
     if (!id || !session) {
       setError("Sign in with Circle before submitting a pool transaction.");
@@ -85,8 +117,11 @@ export function PoolDetailPage() {
     setFlowStatus("READY");
     setTransactionHash(null);
     setTransactionMessage(null);
+    setShowSuccessModal(false);
+    setTransactionStartDetail(detail);
 
     try {
+      const beforeTransaction = detail;
       let challenge: PoolActionTransactionResult;
 
       if (action === "approve") {
@@ -156,6 +191,9 @@ export function PoolDetailPage() {
         }
 
         setFlowStatus("CHALLENGE_COMPLETE");
+        const sdkTransactionHash = transactionResult?.data?.txHash ?? null;
+        setTransactionHash(sdkTransactionHash);
+        setTransactionMessage("Wallet confirmation complete. Waiting for Arc Testnet confirmation...");
 
         try {
           const finalized = await finalizePoolActionTransaction(
@@ -167,7 +205,7 @@ export function PoolDetailPage() {
             session.userToken
           );
 
-          setTransactionHash(finalized.transaction.transactionHash);
+          setTransactionHash(finalized.transaction.transactionHash ?? sdkTransactionHash);
           setTransactionMessage(finalized.transaction.message);
 
           if (finalized.transaction.status === "TRANSACTION_CONFIRMED") {
@@ -180,7 +218,22 @@ export function PoolDetailPage() {
             setFlowStatus("TRANSACTION_TIMEOUT");
           }
 
-          await loadPool();
+          if (beforeTransaction && finalized.transaction.status !== "TRANSACTION_FAILED") {
+            setFlowStatus("TRANSACTION_SUBMITTED");
+            setTransactionMessage("Wallet confirmation complete. Waiting for Arc Testnet confirmation...");
+            const updatedDetail = await waitForPoolState(action, beforeTransaction, session.userToken);
+
+            if (updatedDetail) {
+              setFlowStatus("TRANSACTION_CONFIRMED");
+              setTransactionMessage(getConfirmedMessage(action));
+              setShowSuccessModal(true);
+            } else {
+              setFlowStatus("TRANSACTION_TIMEOUT");
+              setTransactionMessage("Transaction may still be confirming. You can refresh status.");
+            }
+          } else {
+            await loadPool(true);
+          }
         } catch (caughtError) {
           setFlowStatus("TRANSACTION_FAILED");
           setError(
@@ -198,6 +251,25 @@ export function PoolDetailPage() {
       setFlowStatus("TRANSACTION_FAILED");
       setError(caughtError instanceof Error ? caughtError.message : "Unable to prepare pool transaction.");
       setIsWorking(false);
+    }
+  }
+
+  async function refreshTransactionStatus() {
+    if (!id || !session) {
+      await loadPool(true);
+      return;
+    }
+
+    try {
+      const latest = await getPoolById(id, session.userToken);
+      setDetail(latest);
+      if (activeAction && transactionStartDetail && hasExpectedPoolStateChanged(activeAction, transactionStartDetail, latest)) {
+        setFlowStatus("TRANSACTION_CONFIRMED");
+        setTransactionMessage(getConfirmedMessage(activeAction));
+        setShowSuccessModal(true);
+      }
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to refresh pool status.");
     }
   }
 
@@ -343,8 +415,6 @@ export function PoolDetailPage() {
                   Sign in with Circle
                 </Link>
               )}
-              <InfoRow label="Flow status" value={formatStateLabel(flowStatus)} />
-              <InfoRow label="Action" value={activeAction ? formatStateLabel(activeAction) : "None"} />
               <InfoRow label="Next required action" value={chainState.nextRequiredAction} />
               <InfoRow
                 label="Joined"
@@ -358,17 +428,21 @@ export function PoolDetailPage() {
                 label="USDC allowance"
                 value={formatNullableBoolean(viewer?.allowanceSufficient ?? null)}
               />
-              <InfoRow
-                action={explorerLink ? <ExplorerLink href={explorerLink} label="Arcscan" /> : null}
-                label="Transaction hash"
-                value={transactionHash ? <AddressText value={transactionHash} /> : "Not available"}
-              />
               {transactionMessage ? <p>{transactionMessage}</p> : null}
               {explorerLink ? (
                 <a className="button secondary full-width" href={explorerLink} rel="noreferrer" target="_blank">
                   View transaction
                 </a>
               ) : null}
+              <AdvancedDetails>
+                <InfoRow label="Flow status" value={formatStateLabel(flowStatus)} />
+                <InfoRow label="Action" value={activeAction ? formatStateLabel(activeAction) : "None"} />
+                <InfoRow
+                  action={explorerLink ? <ExplorerLink href={explorerLink} label="Arcscan" /> : null}
+                  label="Transaction hash"
+                  value={transactionHash ? <AddressText value={transactionHash} /> : "Not available"}
+                />
+              </AdvancedDetails>
             </Card>
 
             <Card>
@@ -376,7 +450,7 @@ export function PoolDetailPage() {
               {detail.members.length === 0 ? (
                 <p>
                   {chainState.members.length > 0
-                    ? "Member count is synced on-chain. Detailed member rows are still catching up."
+                    ? "Member count is synced on-chain. Detailed member list is not available yet."
                     : "No members have joined yet."}
                 </p>
               ) : null}
@@ -435,10 +509,16 @@ export function PoolDetailPage() {
           {flowStatus !== "READY" ? (
             <TxStatusPanel
               status={flowStatus}
-              title={`${activeAction ? formatStateLabel(activeAction) : "Pool"} transaction`}
+              title={
+                flowStatus === "CHALLENGE_COMPLETE"
+                  ? "Wallet confirmation complete"
+                  : flowStatus === "TRANSACTION_SUBMITTED"
+                    ? "Waiting for Arc Testnet confirmation..."
+                    : `${activeAction ? formatStateLabel(activeAction) : "Pool"} transaction`
+              }
               actions={
                 <>
-                  <button className="button secondary" type="button" onClick={() => void loadPool()}>
+                  <button className="button secondary" type="button" onClick={() => void refreshTransactionStatus()}>
                     Refresh status
                   </button>
                   {explorerLink ? (
@@ -450,14 +530,33 @@ export function PoolDetailPage() {
               }
             >
               <p>
-                {transactionMessage ??
-                  "Circle may need a moment to expose the transaction hash after wallet approval."}
+                {flowStatus === "CHALLENGE_COMPLETE" || flowStatus === "TRANSACTION_SUBMITTED"
+                  ? "Wallet confirmation complete. Waiting for Arc Testnet confirmation..."
+                  : transactionMessage ?? "Circle may need a moment to expose the transaction hash after wallet approval."}
               </p>
             </TxStatusPanel>
           ) : null}
-          {flowStatus === "TRANSACTION_CONFIRMED" ? (
-            <Modal title="Pool state updated" status="TRANSACTION_CONFIRMED">
-              <p>The latest chain state has been refreshed. You can continue with the next pool action.</p>
+          {showSuccessModal && flowStatus === "TRANSACTION_CONFIRMED" ? (
+            <Modal
+              actions={
+                <>
+                  {explorerLink ? (
+                    <a className="button secondary" href={explorerLink} rel="noreferrer" target="_blank">
+                      View transaction
+                    </a>
+                  ) : null}
+                  <button className="button primary" type="button" onClick={() => setShowSuccessModal(false)}>
+                    Continue
+                  </button>
+                  <Link className="button ghost" to="/pools">
+                    Back to pools
+                  </Link>
+                </>
+              }
+              title={getConfirmedTitle(activeAction)}
+              status="TRANSACTION_CONFIRMED"
+            >
+              <p>{getConfirmedMessage(activeAction)}</p>
             </Modal>
           ) : null}
         </>
@@ -468,6 +567,38 @@ export function PoolDetailPage() {
 
 function shortAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function hasExpectedPoolStateChanged(action: PoolAction, before: PoolDetail, latest: PoolDetail) {
+  const latestViewer = latest.chainState.viewer;
+
+  if (action === "join") {
+    return latestViewer.hasCurrentUserJoined === true ||
+      latest.chainState.members.length > before.chainState.members.length;
+  }
+
+  if (action === "approve") {
+    return latestViewer.allowanceSufficient === true;
+  }
+
+  return latestViewer.hasCurrentUserContributed === true ||
+    latest.chainState.contributionProgress > before.chainState.contributionProgress ||
+    latest.pool.status !== before.pool.status ||
+    latest.pool.currentRound !== before.pool.currentRound;
+}
+
+function getConfirmedTitle(action: PoolAction | null) {
+  if (action === "join") return "Join confirmed";
+  if (action === "approve") return "USDC approval confirmed";
+  if (action === "contribute") return "Contribution confirmed";
+  return "Pool updated";
+}
+
+function getConfirmedMessage(action: PoolAction | null) {
+  if (action === "join") return "You are now a member of this pool.";
+  if (action === "approve") return "Your USDC allowance is ready for the next contribution.";
+  if (action === "contribute") return "Your contribution is reflected in the current round.";
+  return "The latest pool state has been refreshed.";
 }
 
 function formatNullableBoolean(value: boolean | null) {
