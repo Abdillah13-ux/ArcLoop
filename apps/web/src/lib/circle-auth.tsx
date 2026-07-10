@@ -1,12 +1,14 @@
 import { createContext, ReactNode, useContext, useMemo, useState } from "react";
 
 const circleAuthSessionStorageKey = "arcloop.circleAuthSession";
+const circleSdkLocalStorageKeys = ["socialLoginProvider", "state", "nonce"] as const;
 
 export type CircleAuthSession = {
   mode: "circle";
   userToken: string;
   encryptionKey: string;
   refreshToken: string;
+  sessionUpdatedAt?: number;
   userId: string | null;
   email: string | null;
   name: string | null;
@@ -38,21 +40,30 @@ function isCircleAuthSession(value: unknown): value is CircleAuthSession {
     typeof session.userToken === "string" &&
     typeof session.encryptionKey === "string" &&
     typeof session.refreshToken === "string" &&
+    (session.sessionUpdatedAt === undefined || typeof session.sessionUpdatedAt === "number") &&
     isNullableString(session.userId) &&
     isNullableString(session.email) &&
     isNullableString(session.name)
   );
 }
 
-function clearStoredSession() {
+export function clearCircleBrowserAuthState() {
   try {
     window.sessionStorage.removeItem(circleAuthSessionStorageKey);
   } catch {
     // Ignore storage access failures; auth state still updates in memory.
   }
+
+  try {
+    for (const key of circleSdkLocalStorageKeys) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage access failures; a clean app session is still enforced.
+  }
 }
 
-function readStoredSession(): AuthSession | null {
+export function readCircleAuthSession(): AuthSession | null {
   try {
     const storedSession = window.sessionStorage.getItem(circleAuthSessionStorageKey);
 
@@ -69,7 +80,7 @@ function readStoredSession(): AuthSession | null {
     // Corrupted or inaccessible storage should behave like a signed-out session.
   }
 
-  clearStoredSession();
+  clearCircleBrowserAuthState();
   return null;
 }
 
@@ -82,18 +93,22 @@ function writeStoredSession(session: AuthSession) {
 }
 
 export function CircleAuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSessionState] = useState<AuthSession | null>(() => readStoredSession());
+  const [session, setSessionState] = useState<AuthSession | null>(() => readCircleAuthSession());
 
   const value = useMemo(
     () => ({
       session,
       setSession: (nextSession: AuthSession) => {
-        setSessionState(nextSession);
-        writeStoredSession(nextSession);
+        const sessionWithTimestamp = {
+          ...nextSession,
+          sessionUpdatedAt: nextSession.sessionUpdatedAt ?? Date.now()
+        };
+        setSessionState(sessionWithTimestamp);
+        writeStoredSession(sessionWithTimestamp);
       },
       clearSession: () => {
         setSessionState(null);
-        clearStoredSession();
+        clearCircleBrowserAuthState();
       }
     }),
     [session]

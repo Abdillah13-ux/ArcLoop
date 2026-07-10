@@ -85,7 +85,7 @@ function formatSdkCallbackDebug(info: SdkCallbackDebugInfo) {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { setSession } = useCircleAuth();
+  const { clearSession, setSession } = useCircleAuth();
   const sdkRef = useRef<W3SSdk | null>(null);
   const verifyTokenTimeoutRef = useRef<number | null>(null);
   const sdkCallbackFiredRef = useRef(false);
@@ -269,6 +269,7 @@ export function LoginPage() {
   async function handleGoogleLogin() {
     setError(null);
     setSdkCallbackDebug(formatSdkCallbackDebug(createInitialSdkCallbackDebugInfo()));
+    clearSession();
 
     if (!sdkRef.current) {
       setError("Circle login SDK is not ready yet.");

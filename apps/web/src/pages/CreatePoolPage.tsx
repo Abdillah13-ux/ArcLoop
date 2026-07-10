@@ -14,7 +14,8 @@ import {
   TxStatusPanel
 } from "../components/UiKit";
 import { ApiRequestError, createPoolTransaction, finalizePoolTransaction, getCircleLoginConfig } from "../lib/api-client";
-import { useCircleAuth } from "../lib/circle-auth";
+import { readCircleAuthSession, useCircleAuth } from "../lib/circle-auth";
+import type { AuthSession } from "../lib/circle-auth";
 import type { CreatePoolTransactionResult, FinalizePoolTransactionResult } from "../types/api";
 
 type PoolTransactionFlowStatus =
@@ -53,6 +54,20 @@ function getObjectKeys(value: unknown) {
 function getSdkTransactionHash(challengeResult: unknown) {
   const transactionResult = challengeResult as SignTransactionResult | undefined;
   return transactionResult?.data?.txHash ?? null;
+}
+
+function readLatestCircleSession(fallbackSession: AuthSession) {
+  return readCircleAuthSession() ?? fallbackSession;
+}
+
+function getSessionDebugInfo(session: AuthSession) {
+  return {
+    hasUserToken: Boolean(session.userToken),
+    hasEncryptionKey: Boolean(session.encryptionKey),
+    userTokenLength: session.userToken.length,
+    encryptionKeyLength: session.encryptionKey.length,
+    sessionUpdatedAt: session.sessionUpdatedAt ?? null
+  };
 }
 
 function readSafeErrorInfo(error: unknown, depth = 0, seen = new Set<unknown>()): SafeErrorInfo {
@@ -164,7 +179,7 @@ async function withPoolFinalizationTimeout<T>(promise: Promise<T>) {
 
 export function CreatePoolPage() {
   const navigate = useNavigate();
-  const { clearSession, session } = useCircleAuth();
+  const { clearSession, session, setSession } = useCircleAuth();
   const [title, setTitle] = useState("ArcLoop Genesis Pool");
   const [description, setDescription] = useState(
     "A transparent USDC rotating savings pool on Arc Testnet for the demo flow."
@@ -224,6 +239,29 @@ export function CreatePoolPage() {
     setIsFinalizing(false);
   }
 
+  function loadUpdatedSessionAfterCredentialError(usedSession: AuthSession) {
+    const latestSession = readCircleAuthSession();
+
+    if (
+      latestSession &&
+      (latestSession.userToken !== usedSession.userToken ||
+        latestSession.encryptionKey !== usedSession.encryptionKey)
+    ) {
+      setSession(latestSession);
+      setFlowStatus("TRANSACTION_FAILED");
+      setError("Your refreshed Circle session was loaded. Try creating the pool again.");
+      setResult(null);
+      setFinalizedResult(null);
+      setChallengeStatus(null);
+      setExecutedTxHash(null);
+      setIsFinalizing(false);
+      console.info("[Circle transaction debug] createPool session reloaded", getSessionDebugInfo(latestSession));
+      return true;
+    }
+
+    return false;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
@@ -251,10 +289,13 @@ export function CreatePoolPage() {
         contributionAmount: trimmedContributionAmount,
         maxMembers
       };
+      const transactionSession = readLatestCircleSession(activeSession);
+
+      console.info("[Circle transaction debug] createPool session", getSessionDebugInfo(transactionSession));
 
       const response = await createPoolTransaction({
         ...input
-      }, activeSession.userToken);
+      }, transactionSession.userToken);
       setResult(response);
 
       if (!response.transaction.challengeId) {
@@ -272,11 +313,11 @@ export function CreatePoolPage() {
       const sdk = new W3SSdk({
         appSettings: {
           appId: config.appId
-        },
-        authentication: {
-          userToken: activeSession.userToken,
-          encryptionKey: activeSession.encryptionKey
         }
+      });
+      sdk.setAuthentication({
+        userToken: transactionSession.userToken,
+        encryptionKey: transactionSession.encryptionKey
       });
 
       setFlowStatus("WAITING_FOR_USER_APPROVAL");
@@ -297,6 +338,10 @@ export function CreatePoolPage() {
 
         if (sdkError) {
           if (isSessionExpiredError(sdkError)) {
+            if (loadUpdatedSessionAfterCredentialError(transactionSession)) {
+              return;
+            }
+
             showSessionExpiredState();
             return;
           }
@@ -331,7 +376,7 @@ export function CreatePoolPage() {
                 title: input.title,
                 description: input.description
               },
-              activeSession.userToken
+              transactionSession.userToken
             )
           );
           setFinalizedResult(finalized);
@@ -347,6 +392,10 @@ export function CreatePoolPage() {
           }
         } catch (caughtError) {
           if (isSessionExpiredError(caughtError)) {
+            if (loadUpdatedSessionAfterCredentialError(transactionSession)) {
+              return;
+            }
+
             showSessionExpiredState();
             return;
           }
@@ -369,6 +418,19 @@ export function CreatePoolPage() {
       sdk.execute(response.transaction.challengeId, onComplete);
     } catch (caughtError) {
       if (isSessionExpiredError(caughtError)) {
+        const latestSession = readCircleAuthSession();
+
+        if (
+          latestSession &&
+          (latestSession.userToken !== activeSession.userToken ||
+            latestSession.encryptionKey !== activeSession.encryptionKey)
+        ) {
+          setSession(latestSession);
+          showPreSubmissionFailure("Your refreshed Circle session was loaded. Try creating the pool again.");
+          console.info("[Circle transaction debug] createPool session reloaded", getSessionDebugInfo(latestSession));
+          return;
+        }
+
         showSessionExpiredState();
       } else {
         showPreSubmissionFailure(
