@@ -50,6 +50,7 @@ export type PoolViewerState = {
 
 export type PoolChainState = {
   members: string[];
+  membersJoined: number;
   currentRecipient: string | null;
   contributionProgress: number;
   poolFull: boolean;
@@ -304,6 +305,7 @@ export async function getPoolDetailById(id: string, viewerAddress?: Address | nu
   const pool = refreshedPool ?? stalePool;
   const requiredAmount = BigInt(pool.contributionAmount);
   const poolContract = getRotatingSavingsPoolContract(pool.contractAddress);
+  const onchainPoolState = await readPoolFromChain(pool.onchainPoolId, pool.contractAddress);
 
   const [members, rounds, contributions] = await Promise.all([
     db.select().from(poolMembers).where(eq(poolMembers.poolId, id)),
@@ -371,7 +373,7 @@ export async function getPoolDetailById(id: string, viewerAddress?: Address | nu
     allowanceSufficient = allowance >= requiredAmount;
   }
 
-  const poolFull = onchainMembers.length >= pool.maxMembers;
+  const poolFull = onchainPoolState.memberCount >= pool.maxMembers;
   const viewer = {
     walletAddressPresent: Boolean(viewerAddress),
     walletExists,
@@ -382,6 +384,7 @@ export async function getPoolDetailById(id: string, viewerAddress?: Address | nu
   };
   const chainState = {
     members: onchainMembers.map((member) => normalizeAddress(member)),
+    membersJoined: onchainPoolState.memberCount,
     currentRecipient,
     contributionProgress,
     poolFull,

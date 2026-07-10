@@ -87,8 +87,8 @@ export function PoolDetailPage() {
 
     console.info("[Circle transaction debug] pool state polling started", {
       action,
-      baselineMembersJoined: before.chainState.members.length,
-      baselineContributionProgress: before.chainState.contributionProgress,
+      baselineMembersJoinedNumeric: before.chainState.membersJoined,
+      baselineContributionProgressNumeric: before.chainState.contributionProgress,
       baselineRound: before.pool.currentRound,
       baselineStatus: before.pool.status
     });
@@ -108,12 +108,12 @@ export function PoolDetailPage() {
       console.info("[Circle transaction debug] pool state poll", {
         action,
         pollAttempt,
-        baselineMembersJoined: before.chainState.members.length,
-        baselineContributionProgress: before.chainState.contributionProgress,
+        baselineMembersJoinedNumeric: before.chainState.membersJoined,
+        baselineContributionProgressNumeric: before.chainState.contributionProgress,
         baselineRound: before.pool.currentRound,
         baselineStatus: before.pool.status,
-        latestMembersJoined: latest.chainState.members.length,
-        latestContributionProgress: latest.chainState.contributionProgress,
+        latestMembersJoinedNumeric: latest.chainState.membersJoined,
+        latestContributionProgressNumeric: latest.chainState.contributionProgress,
         latestRound: latest.pool.currentRound,
         latestStatus: latest.pool.status,
         joined: latest.chainState.viewer.hasCurrentUserJoined,
@@ -347,14 +347,14 @@ export function PoolDetailPage() {
                 </div>
                 <div className="stat-card">
                   <span>Members</span>
-                  <strong>{chainState.members.length} / {pool.maxMembers}</strong>
+                  <strong>{chainState.membersJoined} / {pool.maxMembers}</strong>
                 </div>
                 <div className="stat-card">
                   <span>Round</span>
                   <strong>{pool.currentRound}</strong>
                 </div>
               </div>
-              <ProgressBar label="Members joined" max={pool.maxMembers} value={chainState.members.length} />
+              <ProgressBar label="Members joined" max={pool.maxMembers} value={chainState.membersJoined} />
               <ProgressBar
                 label="Round contributions"
                 max={pool.maxMembers}
@@ -469,7 +469,7 @@ export function PoolDetailPage() {
               <h2>Members</h2>
               {detail.members.length === 0 ? (
                 <p>
-                  {chainState.members.length > 0
+                  {chainState.membersJoined > 0
                     ? "Member count is synced on-chain. Detailed member list is not available yet."
                     : "No members have joined yet."}
                 </p>
@@ -594,8 +594,9 @@ function hasExpectedPoolStateChanged(action: PoolAction, before: PoolDetail, lat
 
   if (action === "join") {
     return latestViewer.hasCurrentUserJoined === true ||
-      latest.chainState.members.length > before.chainState.members.length ||
-      latest.chainState.members.length >= before.pool.maxMembers;
+      latest.chainState.membersJoined > before.chainState.membersJoined ||
+      latest.chainState.membersJoined >= before.pool.maxMembers ||
+      (before.pool.status === "created" && latest.pool.status === "active");
   }
 
   if (action === "approve") {

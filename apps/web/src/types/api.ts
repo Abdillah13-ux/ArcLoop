@@ -89,6 +89,7 @@ export type PoolDetail = {
   contributions: RoundContribution[];
   chainState: {
     members: string[];
+    membersJoined: number;
     currentRecipient: string | null;
     contributionProgress: number;
     poolFull: boolean;
