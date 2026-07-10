@@ -83,8 +83,18 @@ export function PoolDetailPage() {
 
   async function waitForPoolState(action: PoolAction, before: PoolDetail, userToken: string) {
     const startedAt = Date.now();
+    let pollAttempt = 0;
+
+    console.info("[Circle transaction debug] pool state polling started", {
+      action,
+      baselineMembersJoined: before.chainState.members.length,
+      baselineContributionProgress: before.chainState.contributionProgress,
+      baselineRound: before.pool.currentRound,
+      baselineStatus: before.pool.status
+    });
 
     while (Date.now() - startedAt < poolStatePollTimeoutMs) {
+      pollAttempt += 1;
       await new Promise((resolve) => window.setTimeout(resolve, poolStatePollIntervalMs));
       let latest: PoolDetail;
       try {
@@ -94,6 +104,22 @@ export function PoolDetailPage() {
       }
 
       setDetail(latest);
+
+      console.info("[Circle transaction debug] pool state poll", {
+        action,
+        pollAttempt,
+        baselineMembersJoined: before.chainState.members.length,
+        baselineContributionProgress: before.chainState.contributionProgress,
+        baselineRound: before.pool.currentRound,
+        baselineStatus: before.pool.status,
+        latestMembersJoined: latest.chainState.members.length,
+        latestContributionProgress: latest.chainState.contributionProgress,
+        latestRound: latest.pool.currentRound,
+        latestStatus: latest.pool.status,
+        joined: latest.chainState.viewer.hasCurrentUserJoined,
+        allowance: latest.chainState.viewer.allowanceSufficient,
+        contributed: latest.chainState.viewer.hasCurrentUserContributed
+      });
 
       const stateChanged = hasExpectedPoolStateChanged(action, before, latest);
 
@@ -165,15 +191,9 @@ export function PoolDetailPage() {
       const onComplete: ChallengeCompleteCallback = async (sdkError, challengeResult) => {
         const transactionResult = challengeResult as SignTransactionResult | undefined;
         console.info("[Circle transaction debug] pool action SDK callback", {
-          challengeIdLength: challengeId.length,
-          callbackFired: true,
+          action,
           callbackStatus: challengeResult?.status ?? null,
-          hasTransactionId: false,
-          transactionIdLength: null,
-          hasTxHash: Boolean(transactionResult?.data?.txHash),
-          txHashLength: transactionResult?.data?.txHash?.length ?? null,
-          circleErrorCode: sdkError?.code ?? null,
-          circleErrorMessage: sdkError?.message ?? null
+          callbackError: Boolean(sdkError)
         });
 
         if (sdkError) {
@@ -574,7 +594,8 @@ function hasExpectedPoolStateChanged(action: PoolAction, before: PoolDetail, lat
 
   if (action === "join") {
     return latestViewer.hasCurrentUserJoined === true ||
-      latest.chainState.members.length > before.chainState.members.length;
+      latest.chainState.members.length > before.chainState.members.length ||
+      latest.chainState.members.length >= before.pool.maxMembers;
   }
 
   if (action === "approve") {
